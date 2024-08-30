@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class PushRenderedHtmlCacheRequestBody(BaseModel):
     slug:str
     html:str
+    secret:str
 
 app=APIRouter()
 
@@ -16,6 +17,8 @@ async def getDb():
 @app.post("/pushRenderedHtmlCache")
 async def pushRenderedHtmlCache(body:PushRenderedHtmlCacheRequestBody,currentCollection=Depends(getDb)):
     try:
+        if body.secret!=os.environ.get("SECRET"):
+            return {"message": "fail", "error": "access failed"}
         await currentCollection.update_one({"slug":body.slug},{"$set":{"cachedHtml":body.html}})
         return {"message": "success"}
     except Exception as e:
