@@ -1,7 +1,6 @@
 {
     "builds": [
-      {"src": "server.py", "use": "@vercel/python"},
-      {"src": "pip install -r requirements.txt", "use": "@vercel/static-build","config":{"distDir":"."}}
+      {"src": "server.py", "use": "@vercel/python"}
     ],
     "routes": [
       {"src": "/(.*)", "dest": "server.py"}
