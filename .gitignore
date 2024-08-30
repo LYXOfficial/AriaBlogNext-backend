@@ -1,4 +1,3 @@
 /.vscode
-/__pycache__
-/get/__pycache__
+__pycache__
 /.env

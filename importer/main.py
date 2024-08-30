@@ -1,7 +1,7 @@
 import yaml,sys,io
 import os,re
 import pymongo
-myclient = pymongo.MongoClient("mongodb://localhost:27017/")
+myclient = pymongo.MongoClient("mongodb+srv://ariasaka:GiDuFpzzSsb4j6sb@ariablognext.msda0.mongodb.net/?retryWrites=true&w=majority&appName=AriaBlogNext")
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='gb18030') 
 # myclient=pymongo.MongoClient("")
 res=[]
@@ -30,8 +30,10 @@ for i in os.listdir("importer/posts"):
         textContent=f.read()
         data=yaml.safe_load(textContent.split("---")[1])
         print(data["title"])
-        plainContent=textContent.split("---")[2].strip()[:201]
+        plainContent=textContent.split("---")[2].strip()
         plainContent=clean_markdown(plainContent).replace("\n"," ")
+        wordCount=len(re.findall(r'[a-zA-Z0-9]',plainContent)+re.findall(r'[\u4e00-\u9fff]',plainContent))
+        plainContent=plainContent[:201]
         res.append({
             "title": data.get("title"),
             "description": data.get("description"),
@@ -42,6 +44,7 @@ for i in os.listdir("importer/posts"):
             "lastUpdatedTime": data.get("updated").timestamp(),
             "slug": data.get("abbrlink"),
             "bannerImg": data.get("cover"),
-            "plainContent": plainContent
+            "plainContent": plainContent,
+            "wordCount": wordCount
         })
 myclient["AriaBlogNext"]["Posts"].insert_many(res)
