@@ -1,7 +1,7 @@
 import yaml,sys,io
 import os,re
 import pymongo
-myclient = pymongo.MongoClient("mongodb+srv://ariasaka:GiDuFpzzSsb4j6sb@ariablognext.msda0.mongodb.net/?retryWrites=true&w=majority&appName=AriaBlogNext")
+myclient = pymongo.MongoClient("")
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='gb18030') 
 # myclient=pymongo.MongoClient("")
 res=[]
