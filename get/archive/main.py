@@ -28,7 +28,7 @@ async def getArchiveInfo(year: int, month: int, startl: int = 0, endl: int = Non
         # 查询特定时间范围内的文章
         resl = await currentCollection.find(
             {"publishTime": {"$gte": start_date, "$lt": end_date}},
-            {"_id": 0, "mdContent": 0, "plainContent": 0}
+            {"_id": 0, "mdContent": 0, "plainContent": 0,"cachedHtml":0}
         ).sort("publishTime", -1).to_list(length=endl)
         
         if not resl:

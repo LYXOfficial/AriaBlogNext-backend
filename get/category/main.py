@@ -25,7 +25,7 @@ async def getCategoryInfo(category:str,startl:int=0,endl:int=None,currentCollect
     try:
         totalCount=await currentCollection.count_documents({"category":category})
         endl=endl or totalCount
-        resl=await currentCollection.find({"category":category},{"_id":0,"mdContent":0,"plainContent":0}).sort("date",-1).to_list(length=endl)
+        resl=await currentCollection.find({"category":category},{"_id":0,"mdContent":0,"plainContent":0,"cachedHtml":0}).sort("date",-1).to_list(length=endl)
         if resl is None:
             return {"message":"fail","error":"category not found"}
         data=resl[startl:endl]

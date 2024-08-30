@@ -40,7 +40,7 @@ async def getTagInfo(tag:str,startl:int=0,endl:int=None,currentCollection=Depend
     try:
         totalCount=await currentCollection.count_documents({"tags":tag})
         endl=endl or totalCount
-        resl=await currentCollection.find({"tags":tag},{"_id":0,"mdContent":0,"plainContent":0}).sort("date",-1).to_list(length=endl)
+        resl=await currentCollection.find({"tags":tag},{"_id":0,"mdContent":0,"plainContent":0,"cachedHtml":0}).sort("date",-1).to_list(length=endl)
         if resl is None:
             return {"message":"fail","error":"tag not found"}
         data=resl[startl:endl]
