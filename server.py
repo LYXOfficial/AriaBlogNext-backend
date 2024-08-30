@@ -1,6 +1,8 @@
 import uvicorn
 from fastapi import FastAPI
+from dotenv import load_dotenv
 
+load_dotenv()
 from get.postInfo.server import app as appPostInfo
 
 app = FastAPI()
