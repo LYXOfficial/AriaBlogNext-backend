@@ -1,6 +1,7 @@
 import uvicorn,os
 from fastapi import FastAPI
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 os.environ["TZ"]="Asia/Shanghai"
@@ -12,8 +13,15 @@ from get.archive.main import app as appGetArchive
 
 from update.post.main import app as appUpdatePost
 
-
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
 app.include_router(appGetPost,prefix='/get/post')
 app.include_router(appGetSiteInfo,prefix='/get/siteInfo')
