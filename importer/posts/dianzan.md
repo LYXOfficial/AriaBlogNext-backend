@@ -438,4 +438,4 @@ inject:
 {% checkbox checked, 显示点赞个数 %}
 {% checkbox  首页显示点赞个数 %}
 {% checkbox cookies记录是否点赞，一个人只能点一个 %}
-{% checkbox <del class="noheimu">账号登录功能</del>~~(番外个体计划)~~ %}
+{% checkbox 账号登录功能 %}

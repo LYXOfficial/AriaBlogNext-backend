@@ -1,9 +1,10 @@
 import yaml,sys,io
 import os,re
 import pymongo
-myclient = pymongo.MongoClient("")
+from dotenv import load_dotenv
+load_dotenv()
+myclient = pymongo.MongoClient(os.getenv("MONGODB_URI"))
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='gb18030') 
-# myclient=pymongo.MongoClient("")
 res=[]
 def clean_markdown(text):
     # 移除Markdown语法中的符号
@@ -30,9 +31,9 @@ for i in os.listdir("importer/posts"):
         textContent=f.read()
         data=yaml.safe_load(textContent.split("---")[1])
         print(data["title"])
-        plainContent=textContent.split("---")[2].strip()
+        plainContent=("---".join(textContent.split("---")[2:])).strip()
         plainContent=clean_markdown(plainContent).replace("\n"," ")
-        wordCount=len(re.findall(r'[a-zA-Z0-9]',plainContent)+re.findall(r'[\u4e00-\u9fff]',plainContent))
+        wordCount=len(re.findall(r'\b\w+\b',"---".join(textContent.split("---")[2:]))+re.findall(r'[\u4e00-\u9fff]',"---".join(textContent.split("---")[2:])))
         plainContent=plainContent[:201]
         res.append({
             "title": data.get("title"),
@@ -47,4 +48,5 @@ for i in os.listdir("importer/posts"):
             "plainContent": plainContent,
             "wordCount": wordCount
         })
+myclient["AriaBlogNext"]["Posts"].delete_many({})
 myclient["AriaBlogNext"]["Posts"].insert_many(res)

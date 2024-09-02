@@ -490,7 +490,7 @@ struct longint{
 {% checkbox 符号运算 %}
 {% checkbox 兼容cin/cout、scanf/printf %}
 {% checkbox 布尔运算 %}
-{% checkbox 高速（快于）$O(n\ log(n) )$%}
+{% checkbox 高速（快于）$O(n\log(n) )$%}
 {% checkbox 类型转换/兼容 %}
 {% checkbox 简易赋值 %}
 {% checkbox 支持小数 %}
