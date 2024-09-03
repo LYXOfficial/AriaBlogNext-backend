@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Depends
+from fastapi import APIRouter,Depends,HTTPException
 import motor.motor_asyncio as motor
 import os
 
@@ -14,4 +14,4 @@ async def getFlinks(currentCollection=Depends(getDb)):
         results=await currentCollection.find({},{"_id":0}).to_list(length=None)
         return {"message":"success","data":results}
     except Exception as e:
-        return {"message":"fail","error":str(e)}
+        raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})

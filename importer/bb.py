@@ -23,6 +23,8 @@ def replace_and_remove_tags(text):
     # Replace remaining URLs starting with http or https with [链接]
     text = re.sub(r'https?:\/\/\S+', '[链接]', text)
 
+    text=re.sub('<.*?>', '', text)
+
     return text
 def replace_links_and_images(text):
     # 步骤 1: 临时替换 <img> 标签中的链接，以避免被错误替换

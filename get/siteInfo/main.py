@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Depends
+from fastapi import APIRouter,Depends,HTTPException
 import motor.motor_asyncio as motor
 import os
 
@@ -10,5 +10,8 @@ async def getDb():
 
 @app.get("/lastUpdateTime")
 async def getLatestUpdateTime(currentCollection=Depends(getDb)):
-    time=int((await currentCollection.find_one({"key":"latestUpdateTime"},{"_id":0}))["value"])
-    return {"message":"success","time":time}
+    try:
+        time=int((await currentCollection.find_one({"key":"latestUpdateTime"},{"_id":0}))["value"])
+        return {"message":"success","time":time}
+    except Exception as e:
+        raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})

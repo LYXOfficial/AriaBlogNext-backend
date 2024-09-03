@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Depends
+from fastapi import APIRouter,Depends,HTTPException
 import motor.motor_asyncio as motor
 import os
 
@@ -19,8 +19,8 @@ async def getTags(currentCollection=Depends(getDb)):
         results=await currentCollection.aggregate(pipeline).to_list(length=None)
         return {"message":"success","data":results}
     except Exception as e:
-        return {"message":"fail","error":str(e)}
-    
+        raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
+
 @app.get("/tagCount")
 async def getTagCount(currentCollection=Depends(getDb)):
     try:
@@ -33,7 +33,7 @@ async def getTagCount(currentCollection=Depends(getDb)):
         total_count=result[0]["totalCount"] if result else 0
         return {"message":"success","count":total_count}
     except Exception as e:
-        return {"message":"fail","error":str(e)}
+        raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
 
 @app.get("/tagInfo")
 async def getTagInfo(tag:str,startl:int=0,endl:int=None,currentCollection=Depends(getDb)):
@@ -42,8 +42,8 @@ async def getTagInfo(tag:str,startl:int=0,endl:int=None,currentCollection=Depend
         endl=endl or totalCount
         resl=await currentCollection.find({"tags":tag},{"_id":0,"mdContent":0,"plainContent":0,"cachedHtml":0}).sort("date",-1).to_list(length=endl)
         if resl is None:
-            return {"message":"fail","error":"tag not found"}
+            raise HTTPException(status_code=404,detail={"message":"fail","error":"tag not found"})
         data=resl[startl:endl]
         return {"message":"success","data":data,"totalCount":totalCount}
     except Exception as e:
-        return {"message":"fail","error":str(e)}
+        raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
