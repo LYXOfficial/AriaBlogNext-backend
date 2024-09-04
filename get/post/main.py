@@ -107,7 +107,7 @@ async def searchPosts(query:str,currentCollection=Depends(getDb)):
             mdContent=post.get("mdContent","")
             title=post.get("title","")
             textContent=re.sub(
-                r'\*\*(.*?)\*\*|\*(.*?)\*|`(.*?)`|#+\s+(.*)|!\[.*?\]\(.*?\)|\[(.*?)\]\(.*?\)|$(.*?)$|{%(.*?)%}|<(.*?)>',
+                r'\*\*(.*?)\*\*|\*(.*?)\*|`(.*?)`|#|!\[.*?\]\(.*?\)|\[(.*?)\]\(.*?\)|$(.*?)$|{%(.*?)%}|<(.*?)>|~(.*?)~',
                 lambda m: m.group(1) or m.group(2) or m.group(3) or m.group(4) or m.group(6) or '',
                 mdContent
             )
