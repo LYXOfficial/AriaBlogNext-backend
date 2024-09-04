@@ -83,27 +83,42 @@ async def getRelatedPosts(slug:str,currentCollection=Depends(getDb)):
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
     
 @app.get("/searchPosts")
-async def searchPosts(query: str,currentCollection=Depends(getDb)):
+async def searchPosts(query: str, currentCollection=Depends(getDb)):
     try:
-        # Perform a full-text search using MongoDB's $text query operator
+        # 搜索标题和内容
         searchQuery = {
-            "$text": {"$search": query}
+            "$or": [
+                {"mdContent": {"$regex": query, "$options": "i"}},  # 搜索内容
+                {"title": {"$regex": query, "$options": "i"}}       # 搜索标题
+            ]
         }
 
+        # 执行查询
         matchingPostsCursor = currentCollection.find(
             searchQuery,
             {"_id": 0, "slug": 1, "title": 1, "publishTime": 1, "bannerImg": 1, "mdContent": 1, "tags": 1, "category": 1, "latestUpdatedTime": 1}
-        ).sort([("score", {"$meta": "textScore"})])
+        )
 
+        # 将结果转换为列表
         posts = await matchingPostsCursor.to_list(length=None)
         results = []
         for post in posts:
             mdContent = post.get("mdContent", "")
-            contextIndex = mdContent.lower().find(query.lower())
-            start = max(contextIndex - 50, 0)
-            end = min(contextIndex + 50, len(mdContent))
-            context = mdContent[start:end]
+            title = post.get("title", "")
             
+            # 在内容和标题中查找匹配的上下文
+            contextIndexContent = mdContent.lower().find(query.lower())
+            contextIndexTitle = title.lower().find(query.lower())
+            
+            # 获取上下文的片段
+            context = ""
+            if contextIndexContent != -1:
+                start = max(contextIndexContent - 50, 0)
+                end = min(contextIndexContent + 50, len(mdContent))
+                context = mdContent[start:end]
+            elif contextIndexTitle != -1:
+                context = title
+
             results.append({
                 "slug": post["slug"],
                 "title": post["title"],
@@ -111,7 +126,8 @@ async def searchPosts(query: str,currentCollection=Depends(getDb)):
                 "bannerImg": post.get("bannerImg"),
                 "context": "..." + context + "..."
             })
-
+        
         return {"message": "success", "data": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
+
