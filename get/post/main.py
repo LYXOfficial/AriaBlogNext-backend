@@ -83,7 +83,7 @@ async def getRelatedPosts(slug:str,currentCollection=Depends(getDb)):
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
     
 @app.get("/searchPosts")
-async def searchPosts(query: str,startl=0,endl=None, currentCollection=Depends(getDb)):
+async def searchPosts(query: str,currentCollection=Depends(getDb)):
     try:
         # Perform a full-text search using MongoDB's $text query operator
         searchQuery = {
@@ -112,6 +112,6 @@ async def searchPosts(query: str,startl=0,endl=None, currentCollection=Depends(g
                 "context": "..." + context + "..."
             })
 
-        return {"message": "success", "data": results[startl:endl]}
+        return {"message": "success", "data": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
