@@ -112,6 +112,6 @@ async def searchPosts(query: str,startl=0,endl=None, currentCollection=Depends(g
                 "context": "..." + context + "..."
             })
 
-        return {"message": "success", "data": results[startl:len(results) if endl==None else endl]}
+        return {"message": "success", "data":endl}
     except Exception as e:
         raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
