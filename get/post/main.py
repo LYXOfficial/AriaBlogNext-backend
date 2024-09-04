@@ -1,6 +1,6 @@
 from fastapi import APIRouter,Depends,HTTPException
 import motor.motor_asyncio as motor
-import os,random
+import os,random,re
 
 app=APIRouter()
 
@@ -106,14 +106,20 @@ async def searchPosts(query:str,currentCollection=Depends(getDb)):
         for post in posts:
             mdContent=post.get("mdContent","")
             title=post.get("title","")
-            contextIndex=mdContent.lower().find(query.lower())
+            textContent=re.sub(
+                r'\*\*(.*?)\*\*|\*(.*?)\*|`(.*?)`|#+\s+(.*)|!\[.*?\]\(.*?\)|\[(.*?)\]\(.*?\)|$(.*?)$',
+                lambda m: m.group(1) or m.group(2) or m.group(3) or m.group(4) or m.group(6) or '',
+                mdContent
+            )
+            contextIndex=textContent.lower().find(query.lower())
             context=""
             if contextIndex!=-1:
                 start=max(contextIndex-15,0)
-                end=min(contextIndex+15,len(mdContent))
-                context=mdContent[start:end]
+                end=min(contextIndex+15,len(textContent))
+                context=textContent[start:end]
             elif title.lower().find(query.lower())!=-1:
                 context=title
+            
             results.append({
                 "slug":post["slug"],
                 "title":post["title"],
