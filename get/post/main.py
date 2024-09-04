@@ -118,7 +118,6 @@ async def searchPosts(query:str,currentCollection=Depends(getDb)):
                 "slug":post["slug"],
                 "title":post["title"],
                 "publishTime":post["publishTime"],
-                "bannerImg":post.get("bannerImg"),
                 "context":"..."+context+"..."
             })
         return{"message":"success","data":results}
