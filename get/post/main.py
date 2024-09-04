@@ -118,7 +118,6 @@ async def searchPosts(query:str,currentCollection=Depends(getDb)):
                 "slug":post["slug"],
                 "title":post["title"],
                 "publishTime":post["publishTime"],
-                "category":post["category"],
                 "context":"..."+context+"..."
             })
         return{"message":"success","data":results}
