@@ -8,6 +8,7 @@ async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
     return mongoClient["AriaBlogNext"]["Speaks"]
 
+
 @app.get("/speaks")
 async def getSpeaks(startl:int=0,endl:int=None,currentCollection=Depends(getDb)):
     try:

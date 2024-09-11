@@ -1,10 +1,11 @@
 import requests, pymongo, os
 from dotenv import load_dotenv
-
+requests.adapters.DEFAULT_RETRIES = 5
 load_dotenv()
 myclient = pymongo.MongoClient(os.getenv("MONGODB_URI"))
 APIURL = "https://links.yaria.top/api"
-groups = requests.get(f"{APIURL}/getGroups").json()["groups"]
+proxies = {"HTTP":'HTTP://127.0.0.1:7898',"HTTPS":'HTTP://127.0.0.1:7898'}
+groups = requests.get(f"{APIURL}/getGroups",verify=False,proxies=proxies).json()["groups"]
 res = []
 for group in groups:
     group_data = {
@@ -12,7 +13,7 @@ for group in groups:
         "description": group["descr"],
         "links": []
     }
-    links = requests.get(f"{APIURL}/getLinks/?group={group['id']}").json()["links"]
+    links = requests.get(f"{APIURL}/getLinks/?group={group['id']}",verify=False,proxies=proxies).json()["links"]
     for link in links:
         if not link.get("color") or len(link.get("color")) not in [4, 7]:
             tc = "#888888bb"

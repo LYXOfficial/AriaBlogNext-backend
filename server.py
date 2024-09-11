@@ -16,6 +16,8 @@ from get.sitemap.main import app as appGetSitemap
 
 from update.post.main import app as appUpdatePost
 
+from access.user.main import app as appUserLogin
+
 app = FastAPI()
 
 app.add_middleware(
@@ -36,6 +38,8 @@ app.include_router(appGetSpeaks,prefix='/get/speaks')
 app.include_router(appGetSitemap,prefix='/get/sitemap')
 
 app.include_router(appUpdatePost,prefix='/update/post')
+
+app.include_router(appUserLogin,prefix='/access/user')
 
 if __name__ == '__main__':
     uvicorn.run(app="server:app", host='0.0.0.0', port=2333, reload=True)
