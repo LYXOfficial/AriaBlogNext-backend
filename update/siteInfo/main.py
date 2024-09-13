@@ -26,8 +26,8 @@ def verify_token(token: str):
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-@app.post("/updateLatestUpdateTime")
-async def updateLatestUpdateTime(body:UpdateTimeRequestBody,currentCollection=Depends(getDb)):
+@app.post("/latestUpdateTime")
+async def latestUpdateTime(body:UpdateTimeRequestBody,currentCollection=Depends(getDb)):
     try:
         try:
             jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
