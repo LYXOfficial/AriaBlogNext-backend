@@ -4,7 +4,7 @@ import os
 import jwt
 from datetime import datetime
 from pydantic import BaseModel
-import ahttp
+import httpx
 
 SECRET_KEY = os.environ.get("SECRET")
 ALGORITHM = "HS256"

@@ -4,4 +4,4 @@ motor
 python-dotenv
 pydantic
 pyjwt
-ahttp
+httpx
