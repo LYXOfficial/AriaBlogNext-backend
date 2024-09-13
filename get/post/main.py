@@ -129,7 +129,16 @@ async def searchPosts(query:str,currentCollection=Depends(getDb)):
         return{"message":"success","data":results}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
-
+@app.get("/searchPostsByTitleCount")
+async def searchPostsByTitleCount(title:str,currentCollection=Depends(getDb)):
+    try:
+        searchQuery={
+            "title": {"$regex": title, "$options": "i"}
+        }
+        count=await currentCollection.count_documents(searchQuery)
+        return {"message": "success", "count": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
 @app.get("/searchPostsByTitle")
 async def searchPostsByTitle(title:str,startl:int=0,endl:int=None,currentCollection=Depends(getDb)):
     try:
