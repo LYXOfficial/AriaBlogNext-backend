@@ -2,4 +2,4 @@
 __pycache__
 /.env
 /importer/posts
-bb.json
+/importer/bb.json
