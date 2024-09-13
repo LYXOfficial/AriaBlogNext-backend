@@ -15,6 +15,7 @@ from get.speaks.main import app as appGetSpeaks
 from get.sitemap.main import app as appGetSitemap
 
 from update.post.main import app as appUpdatePost
+from update.siteInfo.main import app as appUpdateSiteInfo
 
 from access.user.main import app as appUserLogin
 
@@ -38,6 +39,7 @@ app.include_router(appGetSpeaks,prefix='/get/speaks')
 app.include_router(appGetSitemap,prefix='/get/sitemap')
 
 app.include_router(appUpdatePost,prefix='/update/post')
+app.include_router(appUpdateSiteInfo,prefix='/update/siteInfo')
 
 app.include_router(appUserLogin,prefix='/access/user')
 
