@@ -3,8 +3,7 @@ import motor.motor_asyncio as motor
 import os,jwt,hashlib
 from pydantic import BaseModel
 from datetime import datetime,timedelta
-from dotenv import load_dotenv
-load_dotenv()
+
 SECRET_KEY=os.environ.get("SECRET")
 ALGORITHM="HS256"
 

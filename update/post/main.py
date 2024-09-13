@@ -1,12 +1,18 @@
 from fastapi import APIRouter,Depends
 import motor.motor_asyncio as motor
-import os
+import os,jwt
 from pydantic import BaseModel
+SECRET_KEY=os.environ.get("SECRET")
+ALGORITHM="HS256"
 
 class PushRenderedHtmlCacheRequestBody(BaseModel):
     slug:str
     html:str
     secret:str
+
+class DeletePostRequestBody(BaseModel):
+    slug:str
+    token:str
 
 app=APIRouter()
 
@@ -20,6 +26,25 @@ async def pushRenderedHtmlCache(body:PushRenderedHtmlCacheRequestBody,currentCol
         if body.secret!=os.environ.get("SECRET"):
             return {"message": "fail", "error": "access failed"}
         await currentCollection.update_one({"slug":body.slug},{"$set":{"cachedHtml":body.html}})
+        return {"message": "success"}
+    except Exception as e:
+        return {"message": "fail", "error": str(e)}
+    
+@app.delete("/deleteRenderedHtmlCache")
+async def deleteRenderedHtmlCache(slug:str,currentCollection=Depends(getDb)):
+    try:
+        await currentCollection.update_one({"slug":slug},{"$unset":{"cachedHtml":""}})
+        return {"message": "success"}
+    except Exception as e:
+        return {"message": "fail", "error": str(e)}
+@app.delete("/deletePost")
+async def deletePost(body:DeletePostRequestBody,currentCollection=Depends(getDb)):
+    try:
+        try:
+            jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
+        except Exception as e:
+            return {"message":"fail","error":"access failed"}
+        await currentCollection.delete_one({"slug":body.slug})
         return {"message": "success"}
     except Exception as e:
         return {"message": "fail", "error": str(e)}
