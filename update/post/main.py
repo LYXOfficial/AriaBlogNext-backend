@@ -46,7 +46,7 @@ async def deletePost(body:DeletePostRequestBody,currentCollection=Depends(getDb)
         except Exception as e:
             raise HTTPException(status_code=401, detail="access failed")
         await currentCollection.delete_one({"slug":body.slug})
-        updateTime()
+        await updateTime()
         return {"message": "success"}
     except Exception as e:
         return {"message": "fail", "error": str(e)}
