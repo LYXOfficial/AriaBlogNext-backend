@@ -42,7 +42,7 @@ async def latestUpdateTime(body:UpdateTimeRequestBody,currentCollection=Depends(
             raise HTTPException(status_code=401,detail="access failed")
         await updateTime()
         try:
-            ahttp.get("https://blog.yaria.top/refreshCache/siteinfo")
+            httpx.get("https://blog.yaria.top/refreshCache/siteinfo")
         except:
             pass
         return {"message":"success"}
