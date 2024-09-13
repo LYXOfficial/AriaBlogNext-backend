@@ -2,6 +2,7 @@ from fastapi import APIRouter,Depends,HTTPException
 import motor.motor_asyncio as motor
 import os,jwt
 from pydantic import BaseModel
+from ..siteInfo.main import updateTime
 SECRET_KEY=os.environ.get("SECRET")
 ALGORITHM="HS256"
 
@@ -45,6 +46,7 @@ async def deletePost(body:DeletePostRequestBody,currentCollection=Depends(getDb)
         except Exception as e:
             raise HTTPException(status_code=401, detail="access failed")
         await currentCollection.delete_one({"slug":body.slug})
+        updateTime()
         return {"message": "success"}
     except Exception as e:
         return {"message": "fail", "error": str(e)}
