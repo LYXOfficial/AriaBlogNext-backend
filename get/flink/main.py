@@ -18,7 +18,13 @@ async def getFlinks(currentCollection=Depends(getDb)):
 @app.get("/flinkCount")
 async def getFlinkCount(currentCollection=Depends(getDb)):
     try:
-        count=await currentCollection.count_documents({})
-        return {"message":"success","count":count}
+        pipeline=[
+            {"$match":{"links":{"$exists":True}}},
+            {"$project":{"linksCount":{"$size":"$links"}}},
+            {"$group":{"_id":None,"totalLinks":{"$sum":"$linksCount"}}}
+        ]
+        result=await currentCollection.aggregate(pipeline).to_list(length=None)
+        totalLinks=result[0]["totalLinks"] if result else 0
+        return {"message":"success","count":totalLinks}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
