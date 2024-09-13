@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Depends
+from fastapi import APIRouter,Depends,HTTPException
 import motor.motor_asyncio as motor
 import os,jwt
 from pydantic import BaseModel
@@ -43,7 +43,7 @@ async def deletePost(body:DeletePostRequestBody,currentCollection=Depends(getDb)
         try:
             jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
         except Exception as e:
-            return {"message":"fail","error":"access failed"}
+            raise HTTPException(status_code=401, detail="access failed")
         await currentCollection.delete_one({"slug":body.slug})
         return {"message": "success"}
     except Exception as e:
