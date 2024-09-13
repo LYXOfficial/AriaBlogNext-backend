@@ -129,3 +129,23 @@ async def searchPosts(query:str,currentCollection=Depends(getDb)):
         return{"message":"success","data":results}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
+
+@app.get("/searchPostsByTitle")
+async def searchPostsByTitle(title:str,currentCollection=Depends(getDb)):
+    try:
+        searchQuery={
+            "title": {"$regex": title, "$options": "i"}
+        }
+        postsCursor = currentCollection.find(
+            searchQuery,
+            {
+                "_id": 0,
+                "mdContent": 0,
+                "cachedHtml": 0,
+                "plainContent": 0,
+            }
+        ).sort("publishTime",-1)
+        posts=await postsCursor.to_list(length=None)
+        return {"message": "success", "data": posts}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
