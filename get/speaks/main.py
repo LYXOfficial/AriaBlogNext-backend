@@ -21,7 +21,7 @@ async def getSpeaks(startl:int=0,endl:int=None,currentCollection=Depends(getDb))
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
 
-@app.get("/speakCount")
+@app.get("/speaksCount")
 async def getSpeaksCount(currentCollection=Depends(getDb)):
     try:
         count=await currentCollection.count_documents({})

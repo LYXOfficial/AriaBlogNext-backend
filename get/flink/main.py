@@ -15,3 +15,10 @@ async def getFlinks(currentCollection=Depends(getDb)):
         return {"message":"success","data":results}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
+@app.get("/flinkCount")
+async def getFlinkCount(currentCollection=Depends(getDb)):
+    try:
+        count=await currentCollection.count_documents({})
+        return {"message":"success","data":count}
+    except Exception as e:
+        raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
