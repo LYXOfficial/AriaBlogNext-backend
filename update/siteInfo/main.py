@@ -17,30 +17,21 @@ app = APIRouter()
 async def getDb():
     mongoClient = motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
     return mongoClient["AriaBlogNext"]["webSiteInfo"]
-
-def verify_token(token: str):
-    try:
-        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-async def updateTime(currentCollection=Depends(getDb)):
+async def updateTime(currentCollection):
     current_time=int(datetime.now().timestamp())
     await currentCollection.update_one(
         {"key":"latestUpdateTime"},
         {"$set":{"value":current_time}},
         upsert=True
     )
-@app.get("/latestUpdateTime")
+@app.post("/latestUpdateTime")
 async def latestUpdateTime(body:UpdateTimeRequestBody,currentCollection=Depends(getDb)):
     try:
         try:
             jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
         except Exception as e:
             raise HTTPException(status_code=401,detail="access failed")
-        await updateTime()
+        await updateTime(currentCollection=currentCollection)
         try:
             httpx.get("https://blog.yaria.top/refreshCache/siteinfo")
         except:
