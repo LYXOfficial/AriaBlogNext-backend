@@ -43,7 +43,7 @@ app.include_router(appGetDraft,prefix='/get/draft')
 
 app.include_router(appUpdatePost,prefix='/update/post')
 app.include_router(appUpdateSiteInfo,prefix='/update/siteInfo')
-app.include_router(appUpdateSiteDraft,prefix='/update/draft')
+app.include_router(appUpdateDraft,prefix='/update/draft')
 
 app.include_router(appUserLogin,prefix='/access/user')
 
