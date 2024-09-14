@@ -1,0 +1,68 @@
+from fastapi import APIRouter,Depends,HTTPException
+import motor.motor_asyncio as motor
+import os,jwt
+from pydantic import BaseModel
+from ..siteInfo.main import updateTime
+SECRET_KEY=os.environ.get("SECRET")
+ALGORITHM="HS256"
+
+class PushRenderedHtmlCacheRequestBody(BaseModel):
+    slug:str
+    html:str
+    secret:str
+
+class DeleteDraftRequestBody(BaseModel):
+    slug:str
+    token:str
+
+class UpdateDraftRequestBody(BaseModel):
+    token:str
+    slug:str
+    title:str
+    description:str|None
+    category:str
+    tags:list[str]
+    coverFit:str|None
+    bannerImg:str|None
+    publishTime:int
+    lastUpdatedTime:int
+
+app=APIRouter()
+
+async def getDb():
+    mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
+    return mongoClient["AriaBlogNext"]["Drafts"]
+
+@app.delete("/deleteDraft")
+async def deleteDraft(body:DeleteDraftRequestBody,currentCollection=Depends(getDb)):
+    try:
+        try:
+            jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
+        except Exception as e:
+            raise HTTPException(status_code=401, detail="access failed")
+        await currentCollection.delete_one({"slug":body.slug})
+        return {"message": "success"}
+    except Exception as e:
+        return {"message": "fail", "error": str(e)}
+@app.put("/updateDraftInfo")
+async def updateDraftInfo(body:UpdateDraftRequestBody,currentCollection=Depends(getDb)):
+    try:
+        try:
+            jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
+        except Exception as e:
+            raise HTTPException(status_code=401, detail="access failed")
+        await currentCollection.update_one({"slug":body.slug},{
+            "$set":{
+                "title":body.title,
+                "category":body.category,
+                "bannerImg":body.bannerImg,
+                "description":body.description,
+                "coverFit":body.coverFit,
+                "tags":body.tags,
+                "publishTime":body.publishTime,
+                "lastUpdatedTime":body.lastUpdatedTime,
+            }
+        })
+        return {"message": "success"}
+    except Exception as e:
+        return {"message": "fail", "error": str(e)}
