@@ -19,13 +19,13 @@ class UpdatePostRequestBody(BaseModel):
     token:str
     slug:str
     title:str
-    description:str
+    description:str|None
     category:str
     tags:list[str]
-    coverFit:str
-    bannerImg:str
-    publishTime:str
-    lastUpdatedTime:str
+    coverFit:str|None
+    bannerImg:str|None
+    publishTime:int
+    lastUpdatedTime:int
 
 app=APIRouter()
 
