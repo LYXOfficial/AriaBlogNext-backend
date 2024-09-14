@@ -15,6 +15,18 @@ class DeletePostRequestBody(BaseModel):
     slug:str
     token:str
 
+class UpdatePostRequestBody(BaseModel):
+    token:str
+    slug:str
+    title:str
+    description:str
+    category:str
+    tags:list[str]
+    coverFit:str
+    bannerImg:str
+    publishTime:str
+    lastUpdatedTime:str
+
 app=APIRouter()
 
 async def getDb():
@@ -46,6 +58,28 @@ async def deletePost(body:DeletePostRequestBody,currentCollection=Depends(getDb)
         except Exception as e:
             raise HTTPException(status_code=401, detail="access failed")
         await currentCollection.delete_one({"slug":body.slug})
+        return {"message": "success"}
+    except Exception as e:
+        return {"message": "fail", "error": str(e)}
+@app.put("/updatePostInfo")
+async def updatePostInfo(body:UpdatePostRequestBody,currentCollection=Depends(getDb)):
+    try:
+        try:
+            jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
+        except Exception as e:
+            raise HTTPException(status_code=401, detail="access failed")
+        await currentCollection.update_one({"slug":body.slug},{
+            "$set":{
+                "title":body.title,
+                "category":body.category,
+                "bannerImg":body.bannerImg,
+                "description":body.description,
+                "coverFit":body.coverFit,
+                "tags":body.tags,
+                "publishTime":body.publishTime,
+                "lastUpdatedTime":body.lastUpdatedTime,
+            }
+        })
         return {"message": "success"}
     except Exception as e:
         return {"message": "fail", "error": str(e)}

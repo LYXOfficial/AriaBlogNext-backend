@@ -37,7 +37,7 @@ for i in os.listdir("importer/posts"):
         plainContent=plainContent[:201]
         res.append({
             "title": data.get("title"),
-            "description": data.get("descrip\tion"),
+            "description": data.get("description"),
             "mdContent": "---".join(textContent.split("---")[2:]),
             "tags": data.get("tags",[]) if type(data.get("tags",[]))==list else [data.get("tags")],
             "category": data.get("categories",[""])[0] if type(data.get("categories",[""]))==list else data.get("categories"),
