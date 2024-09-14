@@ -16,6 +16,7 @@ from get.sitemap.main import app as appGetSitemap
 from get.draft.main import app as appGetDraft
 
 from update.post.main import app as appUpdatePost
+from update.draft.main import app as appUpdateDraft
 from update.siteInfo.main import app as appUpdateSiteInfo
 
 from access.user.main import app as appUserLogin
@@ -42,6 +43,7 @@ app.include_router(appGetDraft,prefix='/get/draft')
 
 app.include_router(appUpdatePost,prefix='/update/post')
 app.include_router(appUpdateSiteInfo,prefix='/update/siteInfo')
+app.include_router(appUpdateSiteDraft,prefix='/update/draft')
 
 app.include_router(appUserLogin,prefix='/access/user')
 
