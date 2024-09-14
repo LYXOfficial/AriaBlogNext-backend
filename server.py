@@ -13,6 +13,7 @@ from get.archive.main import app as appGetArchive
 from get.flink.main import app as appGetFlink
 from get.speaks.main import app as appGetSpeaks
 from get.sitemap.main import app as appGetSitemap
+from get.draft.main import app as appGetDraft
 
 from update.post.main import app as appUpdatePost
 from update.siteInfo.main import app as appUpdateSiteInfo
@@ -37,6 +38,7 @@ app.include_router(appGetArchive,prefix='/get/archive')
 app.include_router(appGetFlink,prefix='/get/flink')
 app.include_router(appGetSpeaks,prefix='/get/speaks')
 app.include_router(appGetSitemap,prefix='/get/sitemap')
+app.include_router(appGetDraft,prefix='/get/draft')
 
 app.include_router(appUpdatePost,prefix='/update/post')
 app.include_router(appUpdateSiteInfo,prefix='/update/siteInfo')
