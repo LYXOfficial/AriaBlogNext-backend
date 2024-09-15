@@ -47,7 +47,7 @@ async def getPostSlugs(currentCollection=Depends(getDb)):
 async def getTotalWordCount(currentCollection=Depends(getDb)):
     try:
         pipeline=[
-            {"$group":{"_id":None,"totalWordCount":{"$sum":{"$strLenCP":"$mdContent"}}}},
+            {"$group":{"_id":None,"totalWordCount":{"$sum":"$wordCount"}}},
             {"$project":{"_id":0,"totalWordCount":1}}
         ]
         result=await currentCollection.aggregate(pipeline).to_list(length=1)
