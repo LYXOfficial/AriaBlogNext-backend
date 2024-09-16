@@ -106,3 +106,23 @@ async def updatePostMarkdown(body:UpdatePostMarkdownBody,currentCollection=Depen
         return {"message": "success"}
     except Exception as e:
         return {"message": "fail", "error": str(e)}
+@app.post("/addPost")
+async def addPost(body:UpdatePostRequestBody,currentCollection=Depends(getDb)):
+    try:
+        try:
+            jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
+        except Exception as e:
+            raise HTTPException(status_code=401, detail="access failed")
+        await currentCollection.insert_one({
+            "title":body.title,
+            "category":body.category,
+            "bannerImg":body.bannerImg,
+            "description":body.description,
+            "coverFit":body.coverFit,
+            "tags":body.tags,
+            "publishTime":body.publishTime,
+            "lastUpdatedTime":body.lastUpdatedTime,
+        })
+        return {"message": "success"}
+    except Exception as e:
+        return {"message": "fail", "error": str(e)}
