@@ -27,7 +27,7 @@ class UpdateDraftRequestBody(BaseModel):
     publishTime:int
     lastUpdatedTime:int
 
-class UpdateDraftMarkdownnBody(BaseModel):
+class UpdateDraftMarkdownBody(BaseModel):
     token:str
     slug:str
     markdown:str
@@ -72,7 +72,7 @@ async def updateDraftInfo(body:UpdateDraftRequestBody,currentCollection=Depends(
     except Exception as e:
         return {"message": "fail", "error": str(e)}
 @app.put("/updateDraftMarkdown")
-async def updateDraftMarkdown(body:UpdateDraftRequestBody,currentCollection=Depends(getDb)):
+async def updateDraftMarkdown(body:UpdateDraftMarkdownBody,currentCollection=Depends(getDb)):
     try:
         try:
             jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])

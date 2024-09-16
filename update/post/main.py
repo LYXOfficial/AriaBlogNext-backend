@@ -27,7 +27,7 @@ class UpdatePostRequestBody(BaseModel):
     publishTime:int
     lastUpdatedTime:int
 
-class UpdatePostMarkdownnBody(BaseModel):
+class UpdatePostMarkdownBody(BaseModel):
     token:str
     slug:str
     markdown:str
@@ -89,7 +89,7 @@ async def updatePostInfo(body:UpdatePostRequestBody,currentCollection=Depends(ge
     except Exception as e:
         return {"message": "fail", "error": str(e)}
 @app.put("/updatePostMarkdown")
-async def updatePostMarkdown(body:UpdatePostRequestBody,currentCollection=Depends(getDb)):
+async def updatePostMarkdown(body:UpdatePostMarkdownBody,currentCollection=Depends(getDb)):
     try:
         try:
             jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
