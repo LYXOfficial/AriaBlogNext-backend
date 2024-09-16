@@ -46,7 +46,7 @@ async def pushRenderedHtmlCache(body:PushRenderedHtmlCacheRequestBody,currentCol
         await currentCollection.update_one({"slug":body.slug},{"$set":{"cachedHtml":body.html}})
         return {"message": "success"}
     except Exception as e:
-        return {"message": "fail", "error": str(e)}
+        raise HTTPException(status_code=500, detail={"message": "internal server error", "error": str(e)})
     
 @app.delete("/deleteRenderedHtmlCache")
 async def deleteRenderedHtmlCache(slug:str,currentCollection=Depends(getDb)):
@@ -54,7 +54,7 @@ async def deleteRenderedHtmlCache(slug:str,currentCollection=Depends(getDb)):
         await currentCollection.update_one({"slug":slug},{"$unset":{"cachedHtml":""}})
         return {"message": "success"}
     except Exception as e:
-        return {"message": "fail", "error": str(e)}
+        raise HTTPException(status_code=500, detail={"message": "internal server error", "error": str(e)})
 @app.delete("/deletePost")
 async def deletePost(body:DeletePostRequestBody,currentCollection=Depends(getDb)):
     try:
@@ -65,7 +65,7 @@ async def deletePost(body:DeletePostRequestBody,currentCollection=Depends(getDb)
         await currentCollection.delete_one({"slug":body.slug})
         return {"message": "success"}
     except Exception as e:
-        return {"message": "fail", "error": str(e)}
+        raise HTTPException(status_code=500, detail={"message": "internal server error", "error": str(e)})
 @app.put("/updatePostInfo")
 async def updatePostInfo(body:UpdatePostRequestBody,currentCollection=Depends(getDb)):
     try:
@@ -87,7 +87,7 @@ async def updatePostInfo(body:UpdatePostRequestBody,currentCollection=Depends(ge
         })
         return {"message": "success"}
     except Exception as e:
-        return {"message": "fail", "error": str(e)}
+        raise HTTPException(status_code=500, detail={"message": "internal server error", "error": str(e)})
 @app.put("/updatePostMarkdown")
 async def updatePostMarkdown(body:UpdatePostMarkdownBody,currentCollection=Depends(getDb)):
     try:
@@ -105,7 +105,7 @@ async def updatePostMarkdown(body:UpdatePostMarkdownBody,currentCollection=Depen
         })
         return {"message": "success"}
     except Exception as e:
-        return {"message": "fail", "error": str(e)}
+        raise HTTPException(status_code=500, detail={"message": "internal server error", "error": str(e)})
 @app.post("/addPost")
 async def addPost(body:UpdatePostRequestBody,currentCollection=Depends(getDb)):
     try:
@@ -113,16 +113,19 @@ async def addPost(body:UpdatePostRequestBody,currentCollection=Depends(getDb)):
             jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
         except Exception as e:
             raise HTTPException(status_code=401, detail="access failed")
-        await currentCollection.insert_one({
-            "title":body.title,
-            "category":body.category,
-            "bannerImg":body.bannerImg,
-            "description":body.description,
-            "coverFit":body.coverFit,
-            "tags":body.tags,
-            "publishTime":body.publishTime,
-            "lastUpdatedTime":body.lastUpdatedTime,
-        })
+        if await currentCollection.count_documents({"slug":body.slug})>0:
+            raise HTTPException(status_code=409, detail="slug already exists")
+        else:
+            await currentCollection.insert_one({
+                "title":body.title,
+                "category":body.category,
+                "bannerImg":body.bannerImg,
+                "description":body.description,
+                "coverFit":body.coverFit,
+                "tags":body.tags,
+                "publishTime":body.publishTime,
+                "lastUpdatedTime":body.lastUpdatedTime,
+            })
         return {"message": "success"}
     except Exception as e:
-        return {"message": "fail", "error": str(e)}
+        raise HTTPException(status_code=500, detail={"message": "internal server error", "error": str(e)})

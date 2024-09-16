@@ -48,7 +48,7 @@ async def deleteDraft(body:DeleteDraftRequestBody,currentCollection=Depends(getD
         await currentCollection.delete_one({"slug":body.slug})
         return {"message": "success"}
     except Exception as e:
-        return {"message": "fail", "error": str(e)}
+        raise HTTPException(status_code=500, detail={"message": "internal server error", "error": str(e)})
 @app.put("/updateDraftInfo")
 async def updateDraftInfo(body:UpdateDraftRequestBody,currentCollection=Depends(getDb)):
     try:
@@ -70,7 +70,7 @@ async def updateDraftInfo(body:UpdateDraftRequestBody,currentCollection=Depends(
         })
         return {"message": "success"}
     except Exception as e:
-        return {"message": "fail", "error": str(e)}
+        raise HTTPException(status_code=500, detail={"message": "internal server error", "error": str(e)})
 @app.put("/updateDraftMarkdown")
 async def updateDraftMarkdown(body:UpdateDraftMarkdownBody,currentCollection=Depends(getDb)):
     try:
@@ -88,7 +88,7 @@ async def updateDraftMarkdown(body:UpdateDraftMarkdownBody,currentCollection=Dep
         })
         return {"message": "success"}
     except Exception as e:
-        return {"message": "fail", "error": str(e)}
+        raise HTTPException(status_code=500, detail={"message": "internal server error", "error": str(e)})
 @app.post("/addDraft")
 async def addDraft(body:UpdateDraftRequestBody,currentCollection=Depends(getDb)):
     try:
@@ -96,16 +96,19 @@ async def addDraft(body:UpdateDraftRequestBody,currentCollection=Depends(getDb))
             jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
         except Exception as e:
             raise HTTPException(status_code=401, detail="access failed")
-        await currentCollection.insert_one({
-            "title":body.title,
-            "category":body.category,
-            "bannerImg":body.bannerImg,
-            "description":body.description,
-            "coverFit":body.coverFit,
-            "tags":body.tags,
-            "publishTime":body.publishTime,
-            "lastUpdatedTime":body.lastUpdatedTime,
-        })
+        if await currentCollection.count_documents({"slug":body.slug})>0:
+            raise HTTPException(status_code=409, detail="slug already exists")
+        else:
+            await currentCollection.insert_one({
+                "title":body.title,
+                "category":body.category,
+                "bannerImg":body.bannerImg,
+                "description":body.description,
+                "coverFit":body.coverFit,
+                "tags":body.tags,
+                "publishTime":body.publishTime,
+                "lastUpdatedTime":body.lastUpdatedTime,
+            })
         return {"message": "success"}
     except Exception as e:
-        return {"message": "fail", "error": str(e)}
+        raise HTTPException(status_code=500, detail={"message": "internal server error", "error": str(e)})
