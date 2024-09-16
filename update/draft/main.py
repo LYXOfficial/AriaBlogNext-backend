@@ -108,6 +108,7 @@ async def addDraft(body:UpdateDraftRequestBody,currentCollection=Depends(getDb))
                 "tags":body.tags,
                 "publishTime":body.publishTime,
                 "lastUpdatedTime":body.lastUpdatedTime,
+                "slug":body.slug,
             })
         return {"message": "success"}
     except Exception as e:
