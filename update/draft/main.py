@@ -1,6 +1,6 @@
 from fastapi import APIRouter,Depends,HTTPException
 import motor.motor_asyncio as motor
-import os,jwt
+import os,jwt,re
 from pydantic import BaseModel
 from ..siteInfo.main import updateTime
 SECRET_KEY=os.environ.get("SECRET")
@@ -26,6 +26,11 @@ class UpdateDraftRequestBody(BaseModel):
     bannerImg:str|None
     publishTime:int
     lastUpdatedTime:int
+
+class UpdateDraftMarkdownnBody(BaseModel):
+    token:str
+    slug:str
+    markdown:str
 
 app=APIRouter()
 
@@ -61,6 +66,24 @@ async def updateDraftInfo(body:UpdateDraftRequestBody,currentCollection=Depends(
                 "tags":body.tags,
                 "publishTime":body.publishTime,
                 "lastUpdatedTime":body.lastUpdatedTime,
+            }
+        })
+        return {"message": "success"}
+    except Exception as e:
+        return {"message": "fail", "error": str(e)}
+@app.put("/updateDraftMarkdown")
+async def updateDraftMarkdown(body:UpdateDraftRequestBody,currentCollection=Depends(getDb)):
+    try:
+        try:
+            jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
+        except Exception as e:
+            raise HTTPException(status_code=401, detail="access failed")
+        wordCount=len(re.findall(r'\b\w+\b',body.markdown)+re.findall(r'[\u4e00-\u9fff]',body.markdown))
+        await currentCollection.update_one({"slug":body.slug},{
+            "$set":{
+                "mdContent":body.markdown,
+                "cachedHtml":None,
+                "wordCount":wordCount,
             }
         })
         return {"message": "success"}
