@@ -9,11 +9,16 @@ import httpx
 SECRET_KEY = os.environ.get("SECRET")
 ALGORITHM = "HS256"
 
-class UpdateTimeRequestBody(BaseModel):
-    token:str
-
 app = APIRouter()
 
+async def verify(authorization: str=Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401,detail="Authorization header missing")
+    token=authorization.split(" ")[1] if " " in authorization else authorization
+    try:
+        jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
+    except Exception as e:
+        raise HTTPException(status_code=401,detail="Invalid token")
 async def getDb():
     mongoClient = motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
     return mongoClient["AriaBlogNext"]["webSiteInfo"]
@@ -25,12 +30,8 @@ async def updateTime(currentCollection):
         upsert=True
     )
 @app.post("/latestUpdateTime")
-async def latestUpdateTime(body:UpdateTimeRequestBody,currentCollection=Depends(getDb)):
+async def latestUpdateTime(currentCollection=Depends(getDb),user=Depends(verify)):
     try:
-        try:
-            jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
-        except Exception as e:
-            raise HTTPException(status_code=401,detail="access failed")
         await updateTime(currentCollection=currentCollection)
         try:
             httpx.get("https://blog.yaria.top/refreshCache/siteinfo")
