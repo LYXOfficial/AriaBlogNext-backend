@@ -31,6 +31,7 @@ async def getPostBySlug(slug:str,currentCollection=Depends(getDb)):
         post=await currentCollection.find_one({"slug":slug},{"_id":0})
         if post is None: raise HTTPException(status_code=404,detail={"message":"fail","error":"post not found"})
         return {"message":"success","data":post}
+    except HTTPException as e: raise e
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
 
@@ -65,6 +66,7 @@ async def getPostNavigation(slug:str,currentCollection=Depends(getDb)):
         nextPost=await currentCollection.find_one({"publishTime":{"$lt":publishTime}},{"_id":0,"slug":1,"bannerImg":1,"publishTime":1,"title":1},sort=[("publishTime",-1)])
         previousPost=await currentCollection.find_one({"publishTime":{"$gt":publishTime}},{"_id":0,"slug":1,"bannerImg":1,"publishTime":1,"title":1},sort=[("publishTime",1)])
         return {"message":"success","previous":previousPost if previousPost else None,"next":nextPost if nextPost else None}
+    except HTTPException as e: raise e
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
 
@@ -79,6 +81,7 @@ async def getRelatedPosts(slug:str,currentCollection=Depends(getDb)):
         posts=await postsCursor.to_list(length=20)
         random.shuffle(posts)
         return {"message":"success","data":posts[:6]}
+    except HTTPException as e: raise e
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
     

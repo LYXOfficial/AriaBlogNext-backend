@@ -45,5 +45,6 @@ async def getTagInfo(tag:str,startl:int=0,endl:int=None,currentCollection=Depend
             raise HTTPException(status_code=404,detail={"message":"fail","error":"tag not found"})
         data=resl[startl:endl]
         return {"message":"success","data":data,"totalCount":totalCount}
+    except HTTPException as e: raise e
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})

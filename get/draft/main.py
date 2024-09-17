@@ -36,6 +36,7 @@ async def getDraftBySlug(slug:str,currentCollection=Depends(getDb),user=Depends(
         draft=await currentCollection.find_one({"slug":slug},{"_id":0})
         if draft is None: raise HTTPException(status_code=404,detail={"message":"fail","error":"draft not found"})
         return {"message":"success","data":draft}
+    except HTTPException as e: raise e
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
 @app.get("/draftSlugs")

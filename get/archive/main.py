@@ -19,6 +19,7 @@ async def getArchiveInfo(year:int,month:int,startl:int=0,endl:int=None,currentCo
         resl=await currentCollection.find({"publishTime":{"$gte":start_date,"$lt":end_date}},{"_id":0,"mdContent":0,"plainContent":0,"cachedHtml":0}).sort("publishTime",-1).to_list(length=endl)
         if not resl: raise HTTPException(status_code=404,detail={"message":"fail","error":"No posts found for the specified date range"})
         return {"message":"success","data":resl[startl:endl],"totalCount":totalCount}
+    except HTTPException as e: raise e
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
 

@@ -29,6 +29,7 @@ async def getCategoryInfo(category:str,startl:int=0,endl:int=None,currentCollect
         if resl is None: raise HTTPException(status_code=404,detail={"message":"fail","error":"category not found"})
         data=resl[startl:endl]
         return {"message":"success","data":data,"totalCount":totalCount}
+    except HTTPException as e: raise e
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
 
