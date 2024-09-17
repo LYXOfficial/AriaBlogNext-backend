@@ -1,8 +1,7 @@
-from fastapi import APIRouter,Depends,HTTPException
+from fastapi import APIRouter,Depends,HTTPException,Header
 import motor.motor_asyncio as motor
 import os,jwt,re
 from pydantic import BaseModel
-from ..siteInfo.main import updateTime
 SECRET_KEY=os.environ.get("SECRET")
 ALGORITHM="HS256"
 
@@ -50,8 +49,6 @@ app=APIRouter()
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
     return mongoClient["AriaBlogNext"]["Drafts"]
-from fastapi import Header,HTTPException,Depends
-
 async def verify(authorization: str=Header(None)):
     if not authorization:
         raise HTTPException(status_code=401,detail="Authorization header missing")
