@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Depends,HTTPException
+from fastapi import APIRouter,Depends,HTTPException,Header
 import motor.motor_asyncio as motor
 import os,jwt,hashlib
 from pydantic import BaseModel
@@ -16,7 +16,14 @@ class LoginRequestBody(BaseModel):
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
     return mongoClient["AriaBlogNext"]["Users"]
-
+async def verify(authorization: str=Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401,detail="Authorization header missing")
+    token=authorization.split(" ")[1] if " " in authorization else authorization
+    try:
+        jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
+    except Exception as e:
+        raise HTTPException(status_code=401,detail="Invalid token")
 @app.post("/login")
 async def login(data:LoginRequestBody,currentCollection=Depends(getDb)):
     try:
@@ -30,3 +37,6 @@ async def login(data:LoginRequestBody,currentCollection=Depends(getDb)):
         },SECRET_KEY,algorithm=ALGORITHM)}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
+@app.get("/verify")
+async def verifyToken(currentCollection=Depends(getDb),user=Depends(verify)):
+    return {"message":"success"}

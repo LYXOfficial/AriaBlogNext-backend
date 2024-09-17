@@ -42,10 +42,8 @@ def clean_markdown(text):
     cleaned_text=re.sub(r'^\s*\|.*?\|\s*$','',cleaned_text,flags=re.M)
     cleaned_text=re.sub(r'^-{3,}$','',cleaned_text,flags=re.M)
     cleaned_text=re.sub(r'\n{2,}','\n',cleaned_text)
-
     return cleaned_text.strip()
 app=APIRouter()
-
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
     return mongoClient["AriaBlogNext"]["Posts"]
