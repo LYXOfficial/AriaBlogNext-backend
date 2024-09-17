@@ -29,14 +29,15 @@ async def login(data:LoginRequestBody,currentCollection=Depends(getDb)):
     try:
         if await currentCollection.find_one({"user":data.user,
             "password":hashlib.sha256(data.password.encode("utf-8")).hexdigest()}): pass
-        else: return {"message":"forbidden","error":"invalid username or password"}
+        else: raise HTTPException(status_code=401,detail="Invalid credentials")
         return {"message":"success","jwt":jwt.encode({
             "sub": data.user,
             "iat": int(datetime.utcnow().timestamp()),
             "exp": int((datetime.utcnow()+timedelta(days=7)).timestamp()),
         },SECRET_KEY,algorithm=ALGORITHM)}
+    except HTTPException as e: raise e
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
 @app.get("/verify")
-async def verifyToken(currentCollection=Depends(getDb),user=Depends(verify)):
+async def verifyToken(user=Depends(verify)):
     return {"message":"success"}
