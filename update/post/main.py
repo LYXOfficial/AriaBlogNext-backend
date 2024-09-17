@@ -80,10 +80,6 @@ async def deleteRenderedHtmlCache(slug:str,currentCollection=Depends(getDb)):
 @app.delete("/deletePost")
 async def deletePost(body:DeletePostRequestBody,currentCollection=Depends(getDb)):
     try:
-        try:
-            jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
-        except Exception as e:
-            raise HTTPException(status_code=401,detail="access failed")
         await currentCollection.delete_one({"slug":body.slug})
         return {"message": "success"}
     except Exception as e:
@@ -109,10 +105,6 @@ async def updatePostInfo(body:UpdatePostRequestBody,currentCollection=Depends(ge
 @app.put("/updatePostMarkdown")
 async def updatePostMarkdown(body:UpdatePostMarkdownBody,currentCollection=Depends(getDb),user=Depends(verify)):
     try:
-        try:
-            jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
-        except Exception as e:
-            raise HTTPException(status_code=401,detail="access failed")
         wordCount=len(re.findall(r'\b\w+\b',body.markdown)+re.findall(r'[\u4e00-\u9fff]',body.markdown))
         await currentCollection.update_one({"slug":body.slug},{
             "$set":{
@@ -128,10 +120,6 @@ async def updatePostMarkdown(body:UpdatePostMarkdownBody,currentCollection=Depen
 @app.post("/addPost")
 async def addPost(body:UpdatePostRequestBody,currentCollection=Depends(getDb),user=Depends(verify)):
     try:
-        try:
-            jwt.decode(body.token,SECRET_KEY,algorithms=[ALGORITHM])
-        except Exception as e:
-            raise HTTPException(status_code=401,detail="access failed")
         if await currentCollection.count_documents({"slug":body.slug})>0:
             raise HTTPException(status_code=409,detail="slug already exists")
         else:
@@ -147,5 +135,7 @@ async def addPost(body:UpdatePostRequestBody,currentCollection=Depends(getDb),us
                 "slug":body.slug,
             })
         return {"message": "success"}
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message": "internal server error","error": str(e)})
