@@ -14,8 +14,8 @@ async def getDb():
 async def pushFlinkStatus(body:PushFlinkStatusRequestBody,currentCollection=Depends(getDb)):
     try:
         if body.secret==SECRET_KEY:
-            for item in body.data["data"]["linkStatus"]:
-                await currentCollection.update_one({"id":item["id"]},{"$set":{"lantency":item["lantency"]}})
+            for item in body.data["linkStatus"]:
+                await currentCollection.update_one({"links.id":item["id"]},{"$set":{"links.$.lantency":item["lantency"]}})
             return {"message":"success"}
         else:
             raise HTTPException(status_code=403,detail={"message":"fail","error":"invalid secret key"})
