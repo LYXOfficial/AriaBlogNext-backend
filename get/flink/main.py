@@ -11,7 +11,7 @@ async def getStatusDb():
 @app.get("/flinks")
 async def getFlinks(currentCollection=Depends(getDb)):
     try:
-        results=await currentCollection.find({},{"_id":0}).to_list(length=None)
+        results=await currentCollection.find({},{}).to_list(length=None)
         return {"message":"success","data":results}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
@@ -31,7 +31,7 @@ async def getFlinkCount(currentCollection=Depends(getDb)):
 @app.get("/flinkStatus")
 async def getFlinkStatus(currentCollection=Depends(getStatusDb)):
     try:
-        result=(await currentCollection.find({},{}).to_list(length=1))[0]
+        result=(await currentCollection.find({},{"_id":0}).to_list(length=1))[0]
         return {"message":"success","data":result} if result else {"message":"success","data":{}}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
