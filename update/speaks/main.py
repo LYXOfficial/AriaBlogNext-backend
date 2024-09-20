@@ -43,7 +43,7 @@ async def updateSpeaks(body:UpdateSpeaksRequestBody,currentCollection=Depends(ge
 @app.post("/newSpeaks")
 async def newSpeaks(body:UpdateSpeaksRequestBody,currentCollection=Depends(getDb),user=Depends(verify)):
     try:
-        await currentCollection.insert_one({"content":body.content,"plainContent":replace_and_remove_tags(body.content)})
+        await currentCollection.insert_one({"content":body.content,"plainContent":replace_and_remove_tags(body.content),"time":body.time})
         return {"message":"success"}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
