@@ -4,15 +4,12 @@ import os,jwt,re
 from pydantic import BaseModel
 SECRET_KEY=os.environ.get("SECRET")
 ALGORITHM="HS256"
-
 class PushRenderedHtmlCacheRequestBody(BaseModel):
     slug:str
     html:str
     secret:str
-
 class DeletePostRequestBody(BaseModel):
     slug:str
-
 class UpdatePostRequestBody(BaseModel):
     slug:str
     title:str
@@ -23,7 +20,6 @@ class UpdatePostRequestBody(BaseModel):
     bannerImg:str|None
     publishTime:int
     lastUpdatedTime:int
-
 class UpdatePostMarkdownBody(BaseModel):
     slug:str
     markdown:str
@@ -64,7 +60,6 @@ async def pushRenderedHtmlCache(body:PushRenderedHtmlCacheRequestBody,currentCol
         return {"message": "success"}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message": "internal server error","error": str(e)})
-    
 @app.delete("/deleteRenderedHtmlCache")
 async def deleteRenderedHtmlCache(slug:str,currentCollection=Depends(getDb)):
     try:

@@ -35,6 +35,11 @@ async def getPostsInfo(currentCollection=Depends(getDb),response=Response):
         ET.SubElement(url,"lastmod").text=datetime.datetime.now().strftime("%Y-%m-%d")
         ET.SubElement(url,"changefreq").text="daily"
         ET.SubElement(url,"priority").text="0.8"
+        url=ET.SubElement(root,"url")
+        ET.SubElement(url,"loc").text="https://blog.yaria.top/about"
+        ET.SubElement(url,"lastmod").text=datetime.datetime.now().strftime("%Y-%m-%d")
+        ET.SubElement(url,"changefreq").text="daily"
+        ET.SubElement(url,"priority").text="0.8"
         data=ET.tostring(root,encoding="utf-8",method="xml").decode("utf-8")
         return Response(content=data, media_type="application/xml")
     except Exception as e:
