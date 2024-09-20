@@ -14,7 +14,7 @@ async def getDb():
 async def pushFlinkStatus(body:PushFlinkStatusRequestBody,currentCollection=Depends(getDb)):
     try:
         if body.secret==SECRET_KEY:
-            for item in body.data["linkStatus"]:
+            for item in body.data["data"]["linkStatus"]:
                 await currentCollection.update_one({"id":item["id"]},{"$set":{"lantency":item["lantency"]}})
             return {"message":"success"}
         else:
