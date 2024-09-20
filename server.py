@@ -19,6 +19,7 @@ from update.post.main import app as appUpdatePost
 from update.draft.main import app as appUpdateDraft
 from update.siteInfo.main import app as appUpdateSiteInfo
 from update.speaks.main import app as appUpdateSpeaks
+from update.flink.main import app as appUpdateFlink
 
 from access.user.main import app as appUserLogin
 
@@ -46,6 +47,7 @@ app.include_router(appUpdatePost,prefix='/update/post')
 app.include_router(appUpdateSiteInfo,prefix='/update/siteInfo')
 app.include_router(appUpdateDraft,prefix='/update/draft')
 app.include_router(appUpdateSpeaks,prefix='/update/speaks')
+app.include_router(appUpdateFlink,prefix='/update/flink')
 
 app.include_router(appUserLogin,prefix='/access/user')
 
