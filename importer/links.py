@@ -4,8 +4,7 @@ requests.adapters.DEFAULT_RETRIES = 5
 load_dotenv()
 myclient = pymongo.MongoClient(os.getenv("MONGODB_URI"))
 APIURL = "https://links.yaria.top/api"
-proxies = {"HTTP":'HTTP://127.0.0.1:7898',"HTTPS":'HTTP://127.0.0.1:7898'}
-groups = requests.get(f"{APIURL}/getGroups",verify=False,proxies=proxies).json()["groups"]
+groups = requests.get(f"{APIURL}/getGroups",verify=False).json()["groups"]
 res = []
 for group in groups:
     group_data = {
@@ -13,7 +12,7 @@ for group in groups:
         "description": group["descr"],
         "links": []
     }
-    links = requests.get(f"{APIURL}/getLinks/?group={group['id']}",verify=False,proxies=proxies).json()["links"]
+    links = requests.get(f"{APIURL}/getLinks/?group={group['id']}",verify=False).json()["links"]
     for link in links:
         if not link.get("color") or len(link.get("color")) not in [4, 7]:
             tc = "#888888bb"
@@ -26,7 +25,8 @@ for group in groups:
             "description": link["descr"],
             "url": link["link"],
             "avatar": link["avatar"].replace("cdn.afdelivr.top", "gcore.jsdelivr.net"),
-            "color": tc
+            "color": tc,
+            "id": link["oid"],
         })
     res.append(group_data)
 

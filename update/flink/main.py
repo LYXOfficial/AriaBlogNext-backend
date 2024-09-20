@@ -10,15 +10,12 @@ class PushFlinkStatusRequestBody(BaseModel):
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
     return mongoClient["AriaBlogNext"]["FLinks"]
-async def getStatusDb():
-    mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
-    return mongoClient["AriaBlogNext"]["FLinkStatus"]
 @app.post("/pushFlinkStatus")
-async def pushFlinkStatus(body:PushFlinkStatusRequestBody,currentCollection=Depends(getStatusDb)):
+async def pushFlinkStatus(body:PushFlinkStatusRequestBody,currentCollection=Depends(getDb)):
     try:
         if body.secret==SECRET_KEY:
-            await currentCollection.delete_many({})
-            await currentCollection.insert_one({"data":body.data})
+            for item in body["data"]["linkStatus"]:
+                await currentCollection.update_one({"id":item["id"]},{"$set":{"lantency":item["lantency"]}})
             return {"message":"success"}
         else:
             raise HTTPException(status_code=403,detail={"message":"fail","error":"invalid secret key"})
