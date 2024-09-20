@@ -33,14 +33,14 @@ async def deleteSpeaks(body:DeleteSpeaksRequestBody,currentCollection=Depends(ge
         return {"message":"success"}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
-@app.put("updateSpeaks")
+@app.put("/updateSpeaks")
 async def updateSpeaks(body:UpdateSpeaksRequestBody,currentCollection=Depends(getDb),user=Depends(verify)):
     try:
         await currentCollection.update_one({"time":body.time},{"$set":{"content":body.content,"plainContent":replace_and_remove_tags(body.content)}})
         return {"message":"success"}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
-@app.post("newSpeaks")
+@app.post("/newSpeaks")
 async def newSpeaks(body:UpdateSpeaksRequestBody,currentCollection=Depends(getDb),user=Depends(verify)):
     try:
         await currentCollection.insert_one({"time":body.time},{"content":body.content,"plainContent":replace_and_remove_tags(body.content)})
