@@ -6,7 +6,7 @@ SECRET_KEY=os.environ.get("SECRET")
 ALGORITHM="HS256"
 app=APIRouter()
 class DeleteSpeaksRequestBody(BaseModel):
-    time:str
+    time:int
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
     return mongoClient["AriaBlogNext"]["Speaks"]
