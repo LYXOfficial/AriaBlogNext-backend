@@ -14,17 +14,17 @@ async def verify(authorization: str=Header(None)):
         raise HTTPException(status_code=401,detail="Invalid token")
 async def upload(url,body,headers):
     async with httpx.AsyncClient() as client:
-        response=await client.post(url,files=body,headers=headers)
+        response=await client.post(url,files=body,headers=headers,timeout=None)
         return response
 @app.post("/uploadImage")
 async def uploadImage(file:UploadFile=File(...),user=Depends(verify)):
     try:
         headers={
-            "Content-Type":"multipart/form-data",
             "Authorization":"Bearer "+QBU_TOKEN,
             "Accept":"application/json",
         }
-        body={"file":(file.filename,await file.read(),file.content_type)}
+        body={"file":(file.filename, await file.read(), file.content_type)}
+        print(body)
         res=await upload("https://7bu.top/api/v1/upload",body,headers)
         if res.status_code!=200:
             raise HTTPException(status_code=res.status_code,detail=res.json())
