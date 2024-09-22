@@ -15,17 +15,21 @@ async def verify(authorization: str=Header(None)):
 async def upload(url,body,headers):
     async with httpx.AsyncClient() as client:
         response=await client.post(url,files=body,headers=headers)
+        response.raise_for_status()
         return response.json()
 @app.post("/uploadImage")
 async def uploadImage(file:UploadFile=File(...),user=Depends(verify)):
     try:
         headers={
             "Content-Type":"multipart/form-data",
-            "Authorization":QBU_TOKEN,
+            "Authorization":"Bearer "+QBU_TOKEN,
             "Accept":"application/json",
         }
         body={"file":(file.filename,await file.read(),file.content_type)}
-        return {"message":"success","data":await upload("https://7bu.top/api/v1/upload",body,headers)}
+        res=await upload("https://7bu.top/api/v1/upload",body,headers)
+        if res.get("status"):
+            return {"message":"success","data":res}
+        else: raise HTTPException(status_code=5,detail={"message":"fail","error":res.get("message")})
     except HTTPException as e:
         raise e
     except Exception as e:
