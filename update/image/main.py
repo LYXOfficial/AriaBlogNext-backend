@@ -29,7 +29,7 @@ async def uploadImage(file:UploadFile=File(...),user=Depends(verify)):
         res=await upload("https://7bu.top/api/v1/upload",body,headers)
         if res.get("status"):
             return {"message":"success","data":res}
-        else: raise HTTPException(status_code=5,detail={"message":"fail","error":res.get("message")})
+        else: raise HTTPException(status_code=500,detail={"message":"fail","error":res.get("message")})
     except HTTPException as e:
         raise e
     except Exception as e:
