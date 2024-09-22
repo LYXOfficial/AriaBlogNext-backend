@@ -15,8 +15,7 @@ async def verify(authorization: str=Header(None)):
 async def upload(url,body,headers):
     async with httpx.AsyncClient() as client:
         response=await client.post(url,files=body,headers=headers)
-        response.raise_for_status()
-        return response.json()
+        return response
 @app.post("/uploadImage")
 async def uploadImage(file:UploadFile=File(...),user=Depends(verify)):
     try:
@@ -27,9 +26,10 @@ async def uploadImage(file:UploadFile=File(...),user=Depends(verify)):
         }
         body={"file":(file.filename,await file.read(),file.content_type)}
         res=await upload("https://7bu.top/api/v1/upload",body,headers)
-        if res.get("status"):
-            return {"message":"success","data":res}
-        else: raise HTTPException(status_code=500,detail={"message":"fail","error":res.get("message")})
+        if res.status_code!=200:
+            raise HTTPException(status_code=res.status_code,detail=res.json())
+        else:
+            return {"message":"success","data":res.json()}
     except HTTPException as e:
         raise e
     except Exception as e:
