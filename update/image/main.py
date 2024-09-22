@@ -14,7 +14,7 @@ async def verify(authorization: str=Header(None)):
         raise HTTPException(status_code=401,detail="Invalid token")
 async def upload(url,body,headers):
     async with httpx.AsyncClient() as client:
-        response=await client.post(url,body=body,headers=headers)
+        response=await client.post(url,files=body,headers=headers)
         return response.json()
 @app.post("/uploadImage")
 async def uploadImage(file:UploadFile=File(...),user=Depends(verify)):
