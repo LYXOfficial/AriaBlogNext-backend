@@ -1,5 +1,4 @@
-from fastapi import APIRouter,Depends,HTTPException,File,Header
-import motor.motor_asyncio as motor
+from fastapi import APIRouter,Depends,HTTPException,UploadFile,Header,File
 import os,jwt,httpx
 SECRET_KEY=os.environ.get("SECRET")
 ALGORITHM="HS256"
@@ -18,14 +17,15 @@ async def upload(url,body,headers):
         response=await client.post(url,body=body,headers=headers)
         return response.json()
 @app.post("/uploadImage")
-async def uploadImage(file:File,user=Depends(verify)):
+async def uploadImage(file:UploadFile=File(...),user=Depends(verify)):
     try:
         headers={
             "Content-Type":"multipart/form-data",
             "Authorization":QBU_TOKEN,
             "Accept":"application/json",
         }
-        return {"message":"success","data":await upload("https://7bu.top/api/v1/upload",file,headers)}
+        body={"file":(file.filename,await file.read(),file.content_type)}
+        return {"message":"success","data":await upload("https://7bu.top/api/v1/upload",body,headers)}
     except HTTPException as e:
         raise e
     except Exception as e:
