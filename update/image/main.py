@@ -25,8 +25,7 @@ async def uploadImage(file:File,user=Depends(verify)):
             "Authorization":QBU_TOKEN,
             "Accept":"application/json",
         }
-        body=file
-        return {"message":"success","data":await upload("https://7bu.top/api/v1/upload",body,headers)}
+        return {"message":"success","data":await upload("https://7bu.top/api/v1/upload",file,headers)}
     except HTTPException as e:
         raise e
     except Exception as e:
