@@ -63,14 +63,14 @@ async def pushRenderedHtmlCache(body:PushRenderedHtmlCacheRequestBody,currentCol
 @app.delete("/deleteRenderedHtmlCache")
 async def deleteRenderedHtmlCache(slug:str,currentCollection=Depends(getDb)):
     try:
-        await currentCollection.update_one({"slug":slug},{"$unset":{"cachedHtml":""}})
+        await currentCollection.update_one({"slug":slug},{"$set":{"cachedHtml":None}})
         return {"message": "success"}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message": "internal server error","error": str(e)})
 @app.delete("/deleteAllRenderedHtmlCache")
-async def deleteAllRenderedHtmlCache(currentCollection=Depends(getDb)):
+async def deleteAllRenderedHtmlCache(currentCollection=Depends(getDb)):                                    
     try:
-        await currentCollection.update_many({},{"$unset":{"cachedHtml":""}})
+        await currentCollection.update_many({},{"$set":{"cachedHtml":None}})
         return {"message": "success"}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message": "internal server error","error": str(e)})
