@@ -15,11 +15,13 @@ for group in groups:
     links = requests.get(f"{APIURL}/getLinks/?group={group['id']}",verify=False).json()["links"]
     for link in links:
         if not link.get("color") or len(link.get("color")) not in [4, 7]:
-            tc = "#888888bb"
-        elif len(link.get("color")) == 4:
-            tc = f"#{''.join([ch*2 for ch in link.get('color')[1:]])}bb"
-        elif len(link.get("color")) == 7:
-            tc = link.get("color") + "bb"
+            tc = "#888888"
+        elif len(link.get("color"))==5:
+            tc=link.get("color")[:-1]
+        elif len(link.get("color"))==9:
+            tc=link.get("color")[:-2]
+        else:
+            tc=link.get("color")
         group_data["links"].append({
             "name": link["name"],
             "description": link["descr"],
