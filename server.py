@@ -28,7 +28,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*","*.yaria.top"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
