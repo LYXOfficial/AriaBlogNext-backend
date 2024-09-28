@@ -24,8 +24,7 @@ async def uploadImage(file:UploadFile=File(...),user=Depends(verify)):
             "Accept":"application/json",
         }
         body={"file":(file.filename, await file.read(), file.content_type)}
-        print(body)
-        res=await upload("https://7bu.top/api/v1/upload",body,headers)
+        res=await upload("https://lius.me/https://7bu.top/api/v1/upload",body,headers)
         if res.status_code!=200:
             raise HTTPException(status_code=res.status_code,detail=res.json())
         else:
