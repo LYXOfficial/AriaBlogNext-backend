@@ -14,11 +14,11 @@ async def getPostCount(currentCollection=Depends(getDb)):
     return {"message":"success","count":count}
 
 @app.get("/postsInfo")
-async def getPostsInfo(startl:int=0,endl:int=None,currentCollection=Depends(getDb)):
+async def getPostsInfo(startl:int=0,endl:int=None,type="part",currentCollection=Depends(getDb)):
     try:
         totalCount=await currentCollection.count_documents({})
         endl=endl or totalCount
-        postsCursor=currentCollection.find({},{"_id":0,"mdContent":0,"cachedHtml":0}).sort("publishTime",-1)
+        postsCursor=currentCollection.find({},{"_id":0,"mdContent":type=="full","cachedHtml":type=="full"}).sort("publishTime",-1)
         posts=await postsCursor.to_list(length=endl)
         data=posts[startl:endl]
         return {"message":"success","data":data}

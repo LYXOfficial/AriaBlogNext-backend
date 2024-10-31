@@ -22,7 +22,7 @@ for group in groups:
             tc=link.get("color")[:-2]
         else:
             tc=link.get("color")
-        group_data["links"].append({
+        group_data["links"].append({                                                                                                    
             "name": link["name"],
             "description": link["descr"],
             "url": link["link"],
