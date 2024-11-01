@@ -21,7 +21,7 @@ async def getPostsInfo(startl:int=0,endl:int=None,type="part",currentCollection=
         if type=="full":
             postsCursor=currentCollection.find({},{"_id":0}).sort("publishTime",-1)
         else:
-            postsCursor=currentCollection.find({},{"_id":0,"mdContent":1,"cachedHtml":1}).sort("publishTime",-1)
+            postsCursor=currentCollection.find({},{"_id":0,"mdContent":0,"cachedHtml":0}).sort("publishTime",-1)
         posts=await postsCursor.to_list(length=endl)
         data=posts[startl:endl]
         return {"message":"success","data":data}
