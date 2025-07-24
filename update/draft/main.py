@@ -75,7 +75,7 @@ async def deleteRenderedHtmlCache(slug:str,currentCollection=Depends(getDb)):
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message": "internal server error","error": str(e)})
 @app.delete("/deleteDraft")
-async def deleteDraft(body:DeleteDraftRequestBody,currentCollection=Depends(getDb)):
+async def deleteDraft(body:DeleteDraftRequestBody,currentCollection=Depends(getDb),user=Depends(verify)):
     try:
         await currentCollection.delete_one({"slug":body.slug})
         return {"message": "success"}
