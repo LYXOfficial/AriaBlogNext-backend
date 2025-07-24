@@ -75,7 +75,7 @@ async def deleteAllRenderedHtmlCache(currentCollection=Depends(getDb)):
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message": "internal server error","error": str(e)})
 @app.delete("/deletePost")
-async def deletePost(body:DeletePostRequestBody,currentCollection=Depends(getDb)):
+async def deletePost(body:DeletePostRequestBody,currentCollection=Depends(getDb),user=Depends(verify)):
     try:
         await currentCollection.delete_one({"slug":body.slug})
         return {"message": "success"}
