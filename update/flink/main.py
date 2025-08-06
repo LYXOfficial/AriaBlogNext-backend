@@ -145,6 +145,7 @@ async def addGroup(body: GroupBody, currentCollection=Depends(getDb), user=Depen
         await currentCollection.insert_one({
             "name": body.name,
             "description": body.description or "",
+            "order": body.order,
             "links": []
         })
         return {"message": "success"}
@@ -164,7 +165,7 @@ async def updateGroup(body: UpdateGroupBody, currentCollection=Depends(getDb), u
     try:
         await currentCollection.update_one(
             {"name": body.old_name},
-            {"$set": {"name": body.name, "description": body.description}}
+            {"$set": {"name": body.name, "description": body.description,"order": body.order}}
         )
         return {"message": "success"}
     except Exception as e:
