@@ -174,10 +174,11 @@ async def updateGroup(body: UpdateGroupBody, currentCollection=Depends(getDb), u
 @app.get("/dispatchCheckLatencyWorkflow")
 async def dispatchCheckLatencyWorkflow():
     try:
-        req=httpx.post("https://api.github.com/repos/lyxofficial/check-flink/actions/workflows/check_links/dispatches",
+        req=httpx.post("https://api.github.com/repos/lyxofficial/check-flink/actions/workflows/check_links.yml/dispatches",
             headers={
-                "Accept": "application/vnd.github.v3+json",
+                "Accept": "application/vnd.github+json",
                 "Authorization": f"Bearer {os.environ.get('GITHUB_TOKEN')}",
+                'X-GitHub-Api-Version': '2022-11-28'
             },
             json={"ref":"main"}    
         )
