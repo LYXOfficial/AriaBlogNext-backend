@@ -33,11 +33,13 @@ class MoveFlinkGroupBody(BaseModel):
 
 class GroupBody(BaseModel):
     name: str
+    order: Optional[int] = 0
     description: Optional[str] = ""
 
 class UpdateGroupBody(BaseModel):
     old_name: str
     name: str
+    order: Optional[int] = 0
     description: Optional[str] = ""
 async def verify(authorization: str=Header(None)):
     if not authorization:
@@ -136,6 +138,10 @@ async def moveFlinkGroup(body: MoveFlinkGroupBody, currentCollection=Depends(get
 async def addGroup(body: GroupBody, currentCollection=Depends(getDb), user=Depends(verify)):
     try:
         # 新增分组，links为空
+        # 检查分组名是否已存在
+        exists = await currentCollection.find_one({"name": body.name})
+        if exists:
+            raise HTTPException(status_code=400, detail="Group name already exists")
         await currentCollection.insert_one({
             "name": body.name,
             "description": body.description or "",

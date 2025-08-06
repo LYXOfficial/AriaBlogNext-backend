@@ -9,6 +9,7 @@ async def getDb():
 async def getFlinks(currentCollection=Depends(getDb)):
     try:
         results=await currentCollection.find({},{"_id":0}).to_list(length=None)
+        results.sort(key=lambda x:x["order"])
         return {"message":"success","data":results}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
