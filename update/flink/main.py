@@ -1,5 +1,5 @@
 from fastapi import APIRouter,Depends,HTTPException,Header
-import requests
+import httpx
 import motor.motor_asyncio as motor
 import os,jwt
 from pydantic import BaseModel
@@ -174,7 +174,7 @@ async def updateGroup(body: UpdateGroupBody, currentCollection=Depends(getDb), u
 @app.get("/dispatchCheckLatencyWorkflow")
 async def dispatchCheckLatencyWorkflow():
     try:
-        req=requests.post("https://api.github.com/repos/lyxofficial/check-flink/actions/workflows/check_links/dispatches",
+        req=httpx.post("https://api.github.com/repos/lyxofficial/check-flink/actions/workflows/check_links/dispatches",
             headers={
                 "Accept": "application/vnd.github.v3+json",
                 "Authorization": f"Bearer {os.environ.get('GITHUB_TOKEN')}",
