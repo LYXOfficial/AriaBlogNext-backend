@@ -1,4 +1,5 @@
 from fastapi import APIRouter,Depends,HTTPException,Header
+import requests
 import motor.motor_asyncio as motor
 import os,jwt
 from pydantic import BaseModel
@@ -167,6 +168,21 @@ async def updateGroup(body: UpdateGroupBody, currentCollection=Depends(getDb), u
             {"name": body.old_name},
             {"$set": {"name": body.name, "description": body.description,"order": body.order}}
         )
+        return {"message": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
+@app.get("/dispatchCheckLatencyWorkflow")
+async def dispatchCheckLatencyWorkflow():
+    try:
+        req=requests.post("https://api.github.com/repos/lyxofficial/check-flink/actions/workflows/check_links/dispatches",
+            headers={
+                "Accept": "application/vnd.github.v3+json",
+                "Authorization": f"Bearer {os.environ.get('GITHUB_TOKEN')}",
+            },
+            json={"ref":"main"}    
+        )
+        if req.status_code >=400:
+            raise HTTPException(status_code=req.status_code, detail={"message": "fail", "error": req.text})
         return {"message": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
