@@ -24,6 +24,8 @@ class addFlinkRequestBody(BaseModel):
     avatar:str
     color:str
     group:str
+    id:str
+    latency:float
 class MoveFlinkGroupBody(BaseModel):
     from_group: str
     to_group: str
