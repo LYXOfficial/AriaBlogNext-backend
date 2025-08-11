@@ -23,7 +23,10 @@ async def getPostsInfo(startl:int=0,endl:int=None,type="part",currentCollection=
         else:
             postsCursor=currentCollection.find({},{"_id":0,"mdContent":0,"cachedHtml":0}).sort("publishTime",-1)
         posts=await postsCursor.to_list(length=endl)
-        data=posts[startl:endl]
+        data=[
+            {**post, "plainContent": post["plainContent"][:201]} if "plainContent" in post else post
+            for post in posts[startl:endl]
+        ]
         return {"message":"success","data":data}
     except Exception as e:
         raise HTTPException(status_code=500,detail={"message":"fail","error":str(e)})
