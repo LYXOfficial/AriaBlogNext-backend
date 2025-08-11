@@ -15,12 +15,7 @@ S3_ACCESSKEYID = os.environ.get("S3_ACCESSKEYID")
 S3_SECRETACCESSKEY = os.environ.get("S3_SECRETACCESSKEY")
 S3_REGION = os.environ.get("S3_REGION")  # optional
 S3_BUCKET = os.environ.get("S3_BUCKET")
-
-# derived public base url used in response (you can override this to a CDN domain if you have one)
-if S3_ENDPOINT:
-    S3_PUBLIC_URL = f"{S3_ENDPOINT.rstrip('/')}/{S3_BUCKET}"
-else:
-    S3_PUBLIC_URL = f"https://{S3_BUCKET}.s3.amazonaws.com"
+S3_PUBLIC_URL = os.environ.get("S3_PUBLIC_URL")
 
 app = APIRouter()
 
