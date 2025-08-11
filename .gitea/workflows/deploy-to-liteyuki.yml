@@ -73,7 +73,7 @@ jobs:
           docker rm ${{ env.CONTAINER_NAME }} || true
           docker run -d --name ${{ env.CONTAINER_NAME }} \
             ${{ env.CONTAINER_OPTIONS }} \
-            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            -e GH_TOKEN="${{ secrets.GH_TOKEN }}" \
             -e SECRET="${{ secrets.SECRET }}" \
             -e MONGODB_URI="${{ secrets.MONGODB_URI }}" \
             -e S3_ENDPOINT="${{ secrets.S3_ENDPOINT }}" \
