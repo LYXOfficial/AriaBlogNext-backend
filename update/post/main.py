@@ -38,6 +38,7 @@ def clean_markdown(text):
     cleaned_text=re.sub(r'^\s*\|.*?\|\s*$','',cleaned_text,flags=re.M)
     cleaned_text=re.sub(r'^-{3,}$','',cleaned_text,flags=re.M)
     cleaned_text=re.sub(r'\n{2,}','\n',cleaned_text)
+    cleaned_text=re.sub(r'<[^>]+>', '', cleaned_text)
     return cleaned_text.strip()
 app=APIRouter()
 async def getDb():
