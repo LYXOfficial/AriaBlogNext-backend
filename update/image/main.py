@@ -8,6 +8,7 @@ import asyncio
 from urllib.parse import urlparse
 from typing import List
 from pydantic import BaseModel
+import re
 
 # env
 SECRET_KEY = os.environ.get("SECRET")
@@ -84,13 +85,29 @@ async def s3_list_objects() -> List[str]:
 
         objects = []
         allowed_exts = tuple(CONTENT_TYPE_EXT.values())
+        date_pattern = re.compile(r"^(\d{4})/(\d{2})/(\d{2})/")
+
         for page in page_iterator:
             for obj in page.get("Contents", []):
                 key = obj["Key"]
                 if key.lower().endswith(allowed_exts):
+                    # 提取日期
+                    m = date_pattern.match(key)
+                    if m:
+                        obj["_date"] = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                    else:
+                        obj["_date"] = None
                     objects.append(obj)
-        # 按 LastModified 降序排序
-        objects.sort(key=lambda x: x["LastModified"], reverse=True)
+
+        def sort_key(obj):
+            if obj["_date"]:
+                # 先按日期倒序，再按 LastModified 倒序
+                return (obj["_date"], obj["LastModified"])
+            else:
+                # 没有日期的只按 LastModified
+                return ((0, 0, 0), obj["LastModified"])
+
+        objects.sort(key=sort_key, reverse=True)
         results = [f"{S3_PUBLIC_URL.rstrip('/')}/{obj['Key']}" for obj in objects]
         return results
 
