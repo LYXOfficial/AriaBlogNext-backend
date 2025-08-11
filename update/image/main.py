@@ -7,6 +7,7 @@ from datetime import datetime
 import asyncio
 from urllib.parse import urlparse
 from typing import List
+from pydantic import BaseModel
 
 # env
 SECRET_KEY = os.environ.get("SECRET")
@@ -81,13 +82,16 @@ async def s3_list_objects() -> List[str]:
         paginator = s3.get_paginator("list_objects_v2")
         page_iterator = paginator.paginate(Bucket=S3_BUCKET)
 
-        results = []
+        objects = []
         allowed_exts = tuple(CONTENT_TYPE_EXT.values())
         for page in page_iterator:
             for obj in page.get("Contents", []):
                 key = obj["Key"]
                 if key.lower().endswith(allowed_exts):
-                    results.append(f"{S3_PUBLIC_URL.rstrip('/')}/{key}")
+                    objects.append(obj)
+        # 按 LastModified 降序排序
+        objects.sort(key=lambda x: x["LastModified"], reverse=True)
+        results = [f"{S3_PUBLIC_URL.rstrip('/')}/{obj['Key']}" for obj in objects]
         return results
 
     loop = asyncio.get_running_loop()
@@ -170,6 +174,37 @@ async def uploadImage(file: UploadFile = File(...), user=Depends(verify)):
         # return the strict structure you requested
         return {"message": "success", "data": {"data": {"links": {"url": url}}}}
 
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
+
+class ReuploadImageBody(BaseModel):
+    url: str
+
+@app.post("/reuploadImage")
+async def reupload_image(body: ReuploadImageBody, file: UploadFile = File(...), user=Depends(verify)):
+    try:
+        # 校验文件类型
+        content_type = (file.content_type or "").lower()
+        ext = CONTENT_TYPE_EXT.get(content_type)
+        if not ext:
+            raise HTTPException(status_code=400, detail="Unsupported file type")
+
+        # 提取 key
+        parsed = urlparse(body.url)
+        key = parsed.path.lstrip("/")
+        if key.startswith(f"{S3_BUCKET}/"):
+            key = key[len(S3_BUCKET)+1:]
+
+        # 读取新文件内容
+        body_bytes = await file.read()
+
+        # 上传覆盖
+        await s3_put_object(key=key, body=body_bytes, content_type=content_type)
+
+        url = f"{S3_PUBLIC_URL.rstrip('/')}/{key}"
+        return {"message": "success", "data": {"data": {"links": {"url": url}}}}
     except HTTPException as e:
         raise e
     except Exception as e:
