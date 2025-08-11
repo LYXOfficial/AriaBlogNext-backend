@@ -8,6 +8,7 @@ COPY pyproject.toml .
 
 # 安装依赖
 RUN pip install uv
+RUN uv sync
 
 # 复制项目代码
 COPY . .
