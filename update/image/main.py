@@ -101,11 +101,14 @@ async def s3_list_objects() -> List[str]:
 
         def sort_key(obj):
             if obj["_date"]:
-                # 先按日期倒序，再按 LastModified 倒序
-                return (obj["_date"], obj["LastModified"])
+                # 有日期的，按日期+LastModified倒序
+                date_dt = datetime(obj["_date"][0], obj["_date"][1], obj["_date"][2])
             else:
-                # 没有日期的只按 LastModified
-                return ((0, 0, 0), obj["LastModified"])
+                # 没有日期的，用LastModified的日期
+                lm = obj["LastModified"]
+                date_dt = datetime(lm.year, lm.month, lm.day)
+            # 排序键：日期时间戳 + LastModified时间戳
+            return (date_dt.timestamp(), obj["LastModified"].timestamp())
 
         objects.sort(key=sort_key, reverse=True)
         results = [f"{S3_PUBLIC_URL.rstrip('/')}/{obj['Key']}" for obj in objects]
