@@ -99,7 +99,7 @@ async def uploadImage(file: UploadFile = File(...), user=Depends(verify)):
         url = f"{S3_PUBLIC_URL.rstrip('/')}/{key}"
 
         # return the strict structure you requested
-        return {"data": {"data": {"links": {"url": url}}}}
+        return {"message": "success", "data": {"data": {"links": {"url": url}}}}
 
     except HTTPException as e:
         raise e
