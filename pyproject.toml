@@ -6,4 +6,15 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "boto3>=1.40.6",
+    "fastapi>=0.116.1",
+    "httpx>=0.28.1",
+    "motor>=3.7.1",
+    "pydantic>=2.11.7",
+    "pyjwt>=2.10.1",
+    "python-dotenv>=1.1.1",
+    "uvicorn>=0.35.0",
 ]
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true

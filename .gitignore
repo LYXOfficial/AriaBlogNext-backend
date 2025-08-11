@@ -3,3 +3,4 @@ __pycache__
 /.env
 /importer/posts
 /importer/bb.json
+/.venv
