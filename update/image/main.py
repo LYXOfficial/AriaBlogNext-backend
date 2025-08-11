@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, Header, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile,Form, Header, File
 import os
 import jwt
 import boto3
@@ -7,7 +7,6 @@ from datetime import datetime
 import asyncio
 from urllib.parse import urlparse
 from typing import List
-from pydantic import BaseModel
 import re
 
 # env
@@ -199,11 +198,10 @@ async def uploadImage(file: UploadFile = File(...), user=Depends(verify)):
     except Exception as e:
         raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
 
-class ReuploadImageBody(BaseModel):
-    url: str
 
 @app.put("/reuploadImage")
-async def reupload_image(body: ReuploadImageBody, file: UploadFile = File(...), user=Depends(verify)):
+async def reupload_image(url: str = Form(...),
+    file: UploadFile = File(...), user=Depends(verify)):
     try:
         # 校验文件类型
         content_type = (file.content_type or "").lower()
@@ -212,7 +210,7 @@ async def reupload_image(body: ReuploadImageBody, file: UploadFile = File(...), 
             raise HTTPException(status_code=400, detail="Unsupported file type")
 
         # 提取 key
-        parsed = urlparse(body.url)
+        parsed = urlparse(url)
         key = parsed.path.lstrip("/")
         if key.startswith(f"{S3_BUCKET}/"):
             key = key[len(S3_BUCKET)+1:]
