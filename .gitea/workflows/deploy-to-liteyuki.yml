@@ -76,6 +76,7 @@ jobs:
             -e GH_TOKEN="${{ secrets.GH_TOKEN }}" \
             -e SECRET="${{ secrets.SECRET }}" \
             -e MONGODB_URI="${{ secrets.MONGODB_URI }}" \
+            -e DB_NAME="${{ secrets.DB_NAME }}" \
             -e S3_ENDPOINT="${{ secrets.S3_ENDPOINT }}" \
             -e S3_ACCESSKEYID="${{ secrets.S3_ACCESSKEYID }}" \
             -e S3_SECRETACCESSKEY="${{ secrets.S3_SECRETACCESSKEY }}" \
