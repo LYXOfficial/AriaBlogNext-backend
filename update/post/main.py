@@ -108,7 +108,7 @@ async def updatePostMarkdown(body:UpdatePostMarkdownBody,currentCollection=Depen
                 "mdContent":body.markdown,
                 "cachedHtml":None,
                 "wordCount":wordCount,
-                "plainContent": clean_markdown(body.markdown).replace("\n"," "),
+                "plainContent": clean_markdown(body.markdown).replace("\n"," ")[:201],
             }
         })
         return {"message": "success"}
