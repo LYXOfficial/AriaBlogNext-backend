@@ -43,7 +43,7 @@ def clean_markdown(text):
 app=APIRouter()
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
-    return mongoClient["AriaBlogNext"]["Posts"]
+    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["Posts"]
 async def verify(authorization: str=Header(None)):
     if not authorization:
         raise HTTPException(status_code=401,detail="Authorization header missing")

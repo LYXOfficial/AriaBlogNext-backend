@@ -52,7 +52,7 @@ async def verify(authorization: str=Header(None)):
         raise HTTPException(status_code=401,detail="Invalid token")
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
-    return mongoClient["AriaBlogNext"]["FLinks"]
+    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["FLinks"]
 @app.post("/pushFlinkStatus")
 async def pushFlinkStatus(body:PushFlinkStatusRequestBody,currentCollection=Depends(getDb)):
     try:

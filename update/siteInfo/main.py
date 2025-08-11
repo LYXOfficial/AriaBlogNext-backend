@@ -21,7 +21,7 @@ async def verify(authorization: str=Header(None)):
         raise HTTPException(status_code=401,detail="Invalid token")
 async def getDb():
     mongoClient = motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
-    return mongoClient["AriaBlogNext"]["webSiteInfo"]
+    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["webSiteInfo"]
 async def updateTime(currentCollection):
     current_time=int(datetime.now().timestamp())
     await currentCollection.update_one(

@@ -17,7 +17,7 @@ def replace_and_remove_tags(text):
     return text
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
-    return mongoClient["AriaBlogNext"]["Speaks"]
+    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["Speaks"]
 async def verify(authorization: str=Header(None)):
     if not authorization:
         raise HTTPException(status_code=401,detail="Authorization header missing")

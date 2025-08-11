@@ -49,5 +49,5 @@ for i in os.listdir("importer/posts"):
             "wordCount": wordCount,
             "coverFit": data.get("cover-fit"),
         })
-myclient["AriaBlogNext"]["Posts"].delete_many({})
-myclient["AriaBlogNext"]["Posts"].insert_many(res)
+myclient[os.getenv("DB_NAME") or "AriaBlogNext"]["Posts"].delete_many({})
+myclient[os.getenv("DB_NAME") or "AriaBlogNext"]["Posts"].insert_many(res)

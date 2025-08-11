@@ -5,7 +5,7 @@ import pymongo
 from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv()
-myclient = pymongo.MongoClient(os.getenv("MONGODB_URI"))["AriaBlogNext"]["Speaks"]
+myclient = pymongo.MongoClient(os.getenv("MONGODB_URI"))[os.getenv("DB_NAME") or "AriaBlogNext"]["Speaks"]
 myclient.delete_many({})
 def iso_to_unix(iso_string):
     dt = datetime.strptime(iso_string, "%Y-%m-%dT%H:%M:%S.%fZ")

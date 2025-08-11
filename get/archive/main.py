@@ -7,7 +7,7 @@ app=APIRouter()
 
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
-    return mongoClient["AriaBlogNext"]["Posts"]
+    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["Posts"]
 
 @app.get("/archiveInfo")
 async def getArchiveInfo(year:int,month:int,startl:int=0,endl:int=None,currentCollection=Depends(getDb)):

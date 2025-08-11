@@ -48,7 +48,7 @@ app=APIRouter()
 
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
-    return mongoClient["AriaBlogNext"]["Drafts"]
+    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["Drafts"]
 async def verify(authorization: str=Header(None)):
     if not authorization:
         raise HTTPException(status_code=401,detail="Authorization header missing")

@@ -32,6 +32,6 @@ for group in groups:
         })
     res.append(group_data)
 
-collection = myclient["AriaBlogNext"]["FLinks"]
+collection = myclient[os.getenv("DB_NAME") or "AriaBlogNext"]["FLinks"]
 collection.delete_many({})  # Delete all existing documents
 collection.insert_many(res)  # Insert the new documents

@@ -5,7 +5,7 @@ app=APIRouter()
 
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
-    return mongoClient["AriaBlogNext"]["webSiteInfo"]
+    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["webSiteInfo"]
 
 @app.get("/lastUpdateTime")
 async def getLatestUpdateTime(currentCollection=Depends(getDb)):
