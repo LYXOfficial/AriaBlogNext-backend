@@ -202,7 +202,7 @@ async def uploadImage(file: UploadFile = File(...), user=Depends(verify)):
 class ReuploadImageBody(BaseModel):
     url: str
 
-@app.post("/reuploadImage")
+@app.put("/reuploadImage")
 async def reupload_image(body: ReuploadImageBody, file: UploadFile = File(...), user=Depends(verify)):
     try:
         # 校验文件类型
