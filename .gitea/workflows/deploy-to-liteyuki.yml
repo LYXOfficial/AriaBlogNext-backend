@@ -27,7 +27,7 @@ concurrency:
 env:
   CONTAINER_TAG: reg.liteyuki.org/ariasaka/aria-blog-backend:latest
   CONTAINER_NAME: aria-blog-backend
-  CONTAINER_OPTIONS: --network liteyuki-network --network liteyuki6-network
+  CONTAINER_OPTIONS: --network liteyuki-network --network liteyuki6-network --restart=always
 
 jobs:
   build-and-push-and-deploy:
@@ -83,5 +83,4 @@ jobs:
             -e S3_REGION="${{ secrets.S3_REGION }}" \
             -e S3_BUCKET="${{ secrets.S3_BUCKET }}" \
             -e S3_PUBLIC_URL="${{ secrets.S3_PUBLIC_URL }}" \
-            --restart=always \
             ${{ env.CONTAINER_TAG }}

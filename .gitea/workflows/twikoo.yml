@@ -54,4 +54,4 @@ jobs:
           docker rm twikoo || true
           docker stop aria-blog-twikoo || true
           docker rm aria-blog-twikoo || true
-          docker run --name aria-blog-twikoo -e TWIKOO_THROTTLE=1000 -e MONGODB_URI=${{ secrets.MONGODB_URI }} --network liteyuki-network --network liteyuki6-network -v ${PWD}/data:/app/data -d imaegoo/twikoo --restart=always
+          docker run --name aria-blog-twikoo -e TWIKOO_THROTTLE=1000 -e MONGODB_URI=${{ secrets.MONGODB_URI }} --network liteyuki-network --network liteyuki6-network --restart=always -v ${PWD}/data:/app/data -d imaegoo/twikoo
