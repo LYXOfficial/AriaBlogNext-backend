@@ -50,4 +50,6 @@ jobs:
 
       - name: Update container image on host
         run: |
+          docker stop twikoo || true
+          docker rm twikoo || true
           docker run --name twikoo -e TWIKOO_THROTTLE=1000 -e MONGODB_URI=${{ secrets.MONGODB_URI }} -p 8080:8080 -v ${PWD}/data:/app/data -d imaegoo/twikoo
