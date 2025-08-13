@@ -4,19 +4,19 @@ import os
 from pydantic import BaseModel
 app=APIRouter()
 SECRET_KEY=os.environ.get("SECRET")
-class ExportMongoRequestBody(BaseModel):
+class ExportCollectionsRequestBody(BaseModel):
     secret: str
 
 async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
     return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]
 
-@app.post("/")
-async def exportMongo(body:ExportMongoRequestBody,currentCollection=Depends(getDb)):
+@app.post("/collections")
+async def exportCollections(body:ExportCollectionsRequestBody,currentCollection=Depends(getDb)):
     try:
         if body.secret==SECRET_KEY:
-            db=[{i:list(currentCollection[i].find())} for i in list(currentCollection.list_collection_names())]
-            return {"message":"success","db":db}
+            collections=[{i:list(currentCollection[i].find())} for i in list(currentCollection.list_collection_names())]
+            return {"message":"success","collections":collections}
         else:
             raise HTTPException(status_code=403,detail={"message":"fail","error":"invalid secret key"})
     except HTTPException as e:
