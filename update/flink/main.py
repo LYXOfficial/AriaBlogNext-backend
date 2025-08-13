@@ -3,7 +3,7 @@ import httpx
 import motor.motor_asyncio as motor
 import os,jwt
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 app=APIRouter()
 SECRET_KEY=os.environ.get("SECRET")
 ALGORITHM="HS256"

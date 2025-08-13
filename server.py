@@ -14,6 +14,7 @@ from get.flink.main import app as appGetFlink
 from get.speaks.main import app as appGetSpeaks
 from get.sitemap.main import app as appGetSitemap
 from get.draft.main import app as appGetDraft
+from get.exportMongo.main import app as appGetExportMongo
 
 from update.post.main import app as appUpdatePost
 from update.draft.main import app as appUpdateDraft
@@ -43,6 +44,7 @@ app.include_router(appGetFlink,prefix='/get/flink')
 app.include_router(appGetSpeaks,prefix='/get/speaks')
 app.include_router(appGetSitemap,prefix='/get/sitemap')
 app.include_router(appGetDraft,prefix='/get/draft')
+app.include_router(appGetExportMongo,prefix='/get/exportMongo')
 
 app.include_router(appUpdatePost,prefix='/update/post')
 app.include_router(appUpdateSiteInfo,prefix='/update/siteInfo')
