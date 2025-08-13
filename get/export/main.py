@@ -21,14 +21,14 @@ async def export_collections(body: ExportCollectionsRequestBody, db=Depends(get_
         raise HTTPException(status_code=403, detail={"message": "fail", "error": "invalid secret key"})
 
     try:
-        collections_data = []
+        collections_data = {}
         collection_names = await db.list_collection_names()
 
         for name in collection_names:
             docs = await db[name].find().to_list(length=None)
             for doc in docs:
                 doc["_id"] = str(doc["_id"])
-            collections_data.append({name: docs})
+            collections_data[name]=docs
 
         return {"message": "success", "collections": collections_data}
 
