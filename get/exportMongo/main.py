@@ -11,7 +11,7 @@ async def getDb():
     mongoClient=motor.AsyncIOMotorClient(os.environ.get("MONGODB_URI") or "mongodb://localhost:27017")
     return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]
 
-@app.get("/")
+@app.post("/")
 async def exportMongo(body:ExportMongoRequestBody,currentCollection=Depends(getDb)):
     try:
         if body.secret==SECRET_KEY:
