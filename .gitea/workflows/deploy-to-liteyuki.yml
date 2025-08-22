@@ -83,4 +83,5 @@ jobs:
             -e S3_REGION="${{ secrets.S3_REGION }}" \
             -e S3_BUCKET="${{ secrets.S3_BUCKET }}" \
             -e S3_PUBLIC_URL="${{ secrets.S3_PUBLIC_URL }}" \
+            -e SF_TOKEN="${{ secrets.SF_TOKEN }}" \
             ${{ env.CONTAINER_TAG }}
