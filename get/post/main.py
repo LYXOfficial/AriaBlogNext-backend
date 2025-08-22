@@ -291,7 +291,7 @@ async def postSummary(
                     status_code=429,
                     detail={
                         "message": "fail",
-                        "error": "请等待10分钟后再刷新摘要",
+                        "error": "请等待10分钟后再刷新摘要喵～",
                         "nextRefreshTime": (
                             last_refresh + timedelta(minutes=10)
                         ).timestamp(),
@@ -310,7 +310,7 @@ async def postSummary(
             "messages": [
                 {
                     "role": "user",
-                    "content": "你是一位专业的作家，接下来请用精炼并平易近人而并不高深的语言，尽可能更可爱且女性化一些，不要做作，可以使用一些口语化的语气词，写一份一百字左右的文章总结，态度要与作者表达的所保持一致，尽可能不要有幻觉，遇到你所不确定的部分和敏感的（政治或是较负面情绪等内容）请略过而不要回答，而遇到一些晦涩的东西可以尝试解释，接下来给你的文章是markdown格式的，请输出纯文本并使用中文回答我，不要输出多余的内容，只输出文章摘要的正文，不要输出换行符和在编程语言中的非法文字。接下来是文章的正文内容：\n"
+                    "content": "你是一位专业的作家，接下来请用精炼并平易近人而并不高深的语言，尽可能更可爱且女性化一些，不要做作，可以使用一些口语化的语气词（qwq 喵喵 w 什么的 的说），写一份一百字左右的文章总结，态度要与作者表达的所保持一致，尽可能不要有幻觉，遇到你所不确定的部分和敏感的（政治或是较负面情绪等内容）请略过而不要回答，而遇到一些晦涩的东西可以尝试解释，接下来给你的文章是markdown格式的，请输出纯文本并使用中文回答我，不要输出多余的内容，只输出文章摘要的正文，不要输出换行符和在编程语言中的非法文字。接下来是文章的正文内容：\n"
                     + post["mdContent"],
                 }
             ],
@@ -323,6 +323,7 @@ async def postSummary(
             "https://api.siliconflow.cn/v1/chat/completions",
             json=payload,
             headers=headers,
+            timeout=60,
         )
         if response.status_code != 200:
             raise HTTPException(
@@ -332,7 +333,7 @@ async def postSummary(
                     "error": "api error:" + str(response.text),
                 },
             )
-        summary = response.json()["choices"][0]["message"]["content"]
+        summary = response.json()["choices"][0]["message"]["content"].replace("\n","")
         # 更新或插入摘要时包含刷新时间
         await currentSummaryCollection.update_one(
             {"slug": post["slug"]},
