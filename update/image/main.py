@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile,Form, Header, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, Form, Header, File
 import os
 import jwt
 import boto3
@@ -13,7 +13,9 @@ import re
 SECRET_KEY = os.environ.get("SECRET")
 ALGORITHM = "HS256"
 
-S3_ENDPOINT = os.environ.get("S3_ENDPOINT")  # e.g. https://<account>.r2.cloudflarestorage.com
+S3_ENDPOINT = os.environ.get(
+    "S3_ENDPOINT"
+)  # e.g. https://<account>.r2.cloudflarestorage.com
 S3_ACCESSKEYID = os.environ.get("S3_ACCESSKEYID")
 S3_SECRETACCESSKEY = os.environ.get("S3_SECRETACCESSKEY")
 S3_REGION = os.environ.get("S3_REGION")  # optional
@@ -21,6 +23,7 @@ S3_BUCKET = os.environ.get("S3_BUCKET")
 S3_PUBLIC_URL = os.environ.get("S3_PUBLIC_URL")
 
 app = APIRouter()
+
 
 # 删除文件
 async def s3_delete_object(key: str):
@@ -40,6 +43,7 @@ async def s3_delete_object(key: str):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _delete)
 
+
 async def verify(authorization: str = Header(None)):
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header missing")
@@ -48,6 +52,8 @@ async def verify(authorization: str = Header(None)):
         jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
 @app.delete("/deleteImage")
 async def delete_image(url: str, user=Depends(verify)):
     try:
@@ -58,12 +64,14 @@ async def delete_image(url: str, user=Depends(verify)):
         # 如果 PUBLIC_URL 已经包含 bucket name，则 key 会是 yyyy/mm/dd/file.ext
         # 如果不是，则需要移除 bucket name 部分
         if key.startswith(f"{S3_BUCKET}/"):
-            key = key[len(S3_BUCKET)+1:]
+            key = key[len(S3_BUCKET) + 1 :]
 
         await s3_delete_object(key)
         return {"message": "success", "data": {"deleted": url}}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
+        raise HTTPException(
+            status_code=500, detail={"message": "fail", "error": str(e)}
+        )
 
 
 # 获取文件列表
@@ -93,7 +101,11 @@ async def s3_list_objects() -> List[str]:
                     # 提取日期
                     m = date_pattern.match(key)
                     if m:
-                        obj["_date"] = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                        obj["_date"] = (
+                            int(m.group(1)),
+                            int(m.group(2)),
+                            int(m.group(3)),
+                        )
                     else:
                         obj["_date"] = None
                     objects.append(obj)
@@ -116,13 +128,16 @@ async def s3_list_objects() -> List[str]:
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _list)
 
+
 @app.get("/listImages")
 async def list_images(user=Depends(verify)):
     try:
         urls = await s3_list_objects()
         return {"message": "success", "data": {"images": urls}}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
+        raise HTTPException(
+            status_code=500, detail={"message": "fail", "error": str(e)}
+        )
 
 
 # helper to upload to s3 (blocking boto3 put_object run in threadpool)
@@ -152,6 +167,7 @@ async def s3_put_object(key: str, body: bytes, content_type: str):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _put)
 
+
 # map content-type to extension (allowed types)
 CONTENT_TYPE_EXT = {
     "image/jpeg": "jpg",
@@ -160,6 +176,7 @@ CONTENT_TYPE_EXT = {
     "image/webp": "webp",
     "image/gif": "gif",
 }
+
 
 @app.post("/uploadImage")
 async def uploadImage(file: UploadFile = File(...), user=Depends(verify)):
@@ -177,7 +194,9 @@ async def uploadImage(file: UploadFile = File(...), user=Depends(verify)):
         dd = now.strftime("%d")
 
         # generate 13 hex chars
-        rand_hex = secrets.token_hex(7)[:13]  # token_hex(7) => 14 hex chars, slice to 13
+        rand_hex = secrets.token_hex(7)[
+            :13
+        ]  # token_hex(7) => 14 hex chars, slice to 13
         key = f"{yyyy}/{mm}/{dd}/{rand_hex}.{ext}"
 
         # read bytes
@@ -196,12 +215,15 @@ async def uploadImage(file: UploadFile = File(...), user=Depends(verify)):
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
+        raise HTTPException(
+            status_code=500, detail={"message": "fail", "error": str(e)}
+        )
 
 
 @app.put("/reuploadImage")
-async def reupload_image(url: str = Form(...),
-    file: UploadFile = File(...), user=Depends(verify)):
+async def reupload_image(
+    url: str = Form(...), file: UploadFile = File(...), user=Depends(verify)
+):
     try:
         # 校验文件类型
         content_type = (file.content_type or "").lower()
@@ -213,7 +235,7 @@ async def reupload_image(url: str = Form(...),
         parsed = urlparse(url)
         key = parsed.path.lstrip("/")
         if key.startswith(f"{S3_BUCKET}/"):
-            key = key[len(S3_BUCKET)+1:]
+            key = key[len(S3_BUCKET) + 1 :]
 
         # 读取新文件内容
         body_bytes = await file.read()
@@ -226,4 +248,6 @@ async def reupload_image(url: str = Form(...),
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
+        raise HTTPException(
+            status_code=500, detail={"message": "fail", "error": str(e)}
+        )

@@ -6,8 +6,10 @@ from pydantic import BaseModel
 app = APIRouter()
 SECRET_KEY = os.environ.get("SECRET")
 
+
 class ExportCollectionsRequestBody(BaseModel):
     secret: str
+
 
 async def get_db():
     mongo_client = motor.AsyncIOMotorClient(
@@ -15,10 +17,13 @@ async def get_db():
     )
     return mongo_client[os.getenv("DB_NAME") or "AriaBlogNext"]
 
+
 @app.post("/collections")
 async def export_collections(body: ExportCollectionsRequestBody, db=Depends(get_db)):
     if body.secret != SECRET_KEY:
-        raise HTTPException(status_code=403, detail={"message": "fail", "error": "invalid secret key"})
+        raise HTTPException(
+            status_code=403, detail={"message": "fail", "error": "invalid secret key"}
+        )
 
     try:
         collections_data = {}
@@ -28,9 +33,11 @@ async def export_collections(body: ExportCollectionsRequestBody, db=Depends(get_
             docs = await db[name].find().to_list(length=None)
             for doc in docs:
                 doc["_id"] = str(doc["_id"])
-            collections_data[name]=docs
+            collections_data[name] = docs
 
         return {"message": "success", "collections": collections_data}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"message": "fail", "error": str(e)})
+        raise HTTPException(
+            status_code=500, detail={"message": "fail", "error": str(e)}
+        )
