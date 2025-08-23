@@ -314,6 +314,9 @@ async def postSummary(
                     + post["mdContent"],
                 }
             ],
+            "extra_body": {
+                "enable_thinking": False
+            }
         }
         headers = {
             "Authorization": f"Bearer {SF_TOKEN}",
