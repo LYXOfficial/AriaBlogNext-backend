@@ -172,10 +172,12 @@ async def getRelatedPosts(slug: str, currentCollection=Depends(getDb)):
 @app.get("/searchPosts")
 async def searchPosts(query: str, currentCollection=Depends(getDb)):
     try:
+        # 用户输入仅作字面量匹配,转义正则元字符防 ReDoS/重查询
+        escaped = re.escape(query)
         searchQuery = {
             "$or": [
-                {"mdContent": {"$regex": query, "$options": "i"}},
-                {"title": {"$regex": query, "$options": "i"}},
+                {"mdContent": {"$regex": escaped, "$options": "i"}},
+                {"title": {"$regex": escaped, "$options": "i"}},
             ]
         }
         posts = (
@@ -234,7 +236,7 @@ async def searchPosts(query: str, currentCollection=Depends(getDb)):
 @app.get("/searchPostsByTitleCount")
 async def searchPostsByTitleCount(title: str, currentCollection=Depends(getDb)):
     try:
-        searchQuery = {"title": {"$regex": title, "$options": "i"}}
+        searchQuery = {"title": {"$regex": re.escape(title), "$options": "i"}}
         count = await currentCollection.count_documents(searchQuery)
         return {"message": "success", "count": count}
     except Exception as e:
@@ -248,7 +250,7 @@ async def searchPostsByTitle(
     title: str, startl: int = 0, endl: int = None, currentCollection=Depends(getDb)
 ):
     try:
-        searchQuery = {"title": {"$regex": title, "$options": "i"}}
+        searchQuery = {"title": {"$regex": re.escape(title), "$options": "i"}}
         postsCursor = currentCollection.find(
             searchQuery,
             {

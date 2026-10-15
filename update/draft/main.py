@@ -7,12 +7,6 @@ SECRET_KEY = os.environ.get("SECRET")
 ALGORITHM = "HS256"
 
 
-class PushRenderedHtmlCacheRequestBody(BaseModel):
-    slug: str
-    html: str
-    secret: str
-
-
 class DeleteDraftRequestBody(BaseModel):
     slug: str
 
@@ -71,24 +65,6 @@ async def verify(authorization: str = Header(None)):
         jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid token")
-
-
-@app.post("/pushRenderedHtmlCache")
-async def pushRenderedHtmlCache(
-    body: PushRenderedHtmlCacheRequestBody, currentCollection=Depends(getDb)
-):
-    try:
-        if body.secret != os.environ.get("SECRET"):
-            return {"message": "fail", "error": "access failed"}
-        await currentCollection.update_one(
-            {"slug": body.slug}, {"$set": {"cachedHtml": body.html}}
-        )
-        return {"message": "success"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={"message": "internal server error", "error": str(e)},
-        )
 
 
 @app.delete("/deleteRenderedHtmlCache")

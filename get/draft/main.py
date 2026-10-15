@@ -90,7 +90,7 @@ async def searchDraftsByTitleCount(
     title: str, currentCollection=Depends(getDb), user=Depends(verify)
 ):
     try:
-        searchQuery = {"title": {"$regex": title, "$options": "i"}}
+        searchQuery = {"title": {"$regex": re.escape(title), "$options": "i"}}
         count = await currentCollection.count_documents(searchQuery)
         return {"message": "success", "count": count}
     except Exception as e:
@@ -108,7 +108,7 @@ async def searchDraftsByTitle(
     user=Depends(verify),
 ):
     try:
-        searchQuery = {"title": {"$regex": title, "$options": "i"}}
+        searchQuery = {"title": {"$regex": re.escape(title), "$options": "i"}}
         draftsCursor = currentCollection.find(
             searchQuery,
             {
