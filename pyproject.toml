@@ -21,3 +21,10 @@ dependencies = [
 name = "tsinghua"
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
+
+# 官方 PyPI 作为附加索引（回退用）。清华镜像上没有 vercel-runtime，
+# 而 Vercel 构建必须安装它；只把清华设为 default 会导致构建失败：
+#   "vercel-runtime was not found in the package registry"
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
