@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 import httpx
 import motor.motor_asyncio as motor
-import os, jwt
+import os, jwt, uuid
+from bson import ObjectId
 from pydantic import BaseModel
 from typing import Optional
 
@@ -259,6 +260,154 @@ async def dispatchCheckLatencyWorkflow():
                 detail={"message": "fail", "error": req.text},
             )
         return {"message": "success"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail={"message": "fail", "error": str(e)}
+        )
+
+
+# ---------- 友链申请审批 ----------
+
+
+class ApproveApplicationBody(BaseModel):
+    id: str
+    group: str
+    # 以下均可选：审批时允许修改后再通过
+    name: Optional[str] = None
+    link: Optional[str] = None
+    avatar: Optional[str] = None
+    descr: Optional[str] = None
+    color: Optional[str] = None
+
+
+async def getApplicationsDb():
+    mongoClient = motor.AsyncIOMotorClient(
+        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
+    )
+    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["FLinkApplications"]
+
+
+def _objectId(raw: str) -> ObjectId:
+    try:
+        return ObjectId(raw)
+    except Exception:
+        raise HTTPException(
+            status_code=400, detail={"message": "fail", "error": "申请 id 不合法"}
+        )
+
+
+@app.get("/applications")
+async def getApplications(
+    applicationsDb=Depends(getApplicationsDb), user=Depends(verify)
+):
+    """待审核的友链申请（新增与修改申请都在这里）"""
+    try:
+        cursor = applicationsDb.find({}).sort("createdAt", 1)
+        results = await cursor.to_list(length=200)
+        for item in results:
+            item["id"] = str(item.pop("_id"))
+            created = item.get("createdAt")
+            item["createdAt"] = (
+                created.isoformat() if hasattr(created, "isoformat") else created
+            )
+        return {"message": "success", "data": results}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail={"message": "fail", "error": str(e)}
+        )
+
+
+@app.post("/approveApplication")
+async def approveApplication(
+    body: ApproveApplicationBody,
+    linksDb=Depends(getDb),
+    applicationsDb=Depends(getApplicationsDb),
+    user=Depends(verify),
+):
+    """通过申请：type=0 追加到指定分组，type=1 覆盖原友链信息，随后删除申请"""
+    try:
+        application = await applicationsDb.find_one({"_id": _objectId(body.id)})
+        if not application:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "fail", "error": "申请不存在或已被处理"},
+            )
+
+        name = body.name or application.get("name", "")
+        link = (body.link or application.get("link", "")).strip()
+        avatar = body.avatar or application.get("avatar", "")
+        descr = body.descr or application.get("descr", "")
+        color = body.color if body.color is not None else application.get("color", "")
+
+        if application.get("type", 0) == 1:
+            target_group = application.get("targetGroup")
+            target_id = application.get("targetId")
+            if not target_group or not target_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"message": "fail", "error": "该修改申请缺少目标友链信息"},
+                )
+            result = await linksDb.update_one(
+                {"name": target_group, "links.id": target_id},
+                {
+                    "$set": {
+                        "links.$.name": name,
+                        "links.$.url": link,
+                        "links.$.avatar": avatar,
+                        "links.$.description": descr,
+                        "links.$.color": color,
+                    }
+                },
+            )
+            if result.matched_count == 0:
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "message": "fail",
+                        "error": "原友链已不存在（可能被删除或移动过分组），无法应用修改",
+                    },
+                )
+        else:
+            flink = {
+                "name": name,
+                "url": link,
+                "avatar": avatar,
+                "description": descr,
+                "color": color,
+                "id": uuid.uuid4().hex[:8],
+                "latency": 0,
+            }
+            await linksDb.update_one(
+                {"name": body.group}, {"$push": {"links": flink}}, upsert=True
+            )
+
+        await applicationsDb.delete_one({"_id": _objectId(body.id)})
+        return {"message": "success"}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail={"message": "fail", "error": str(e)}
+        )
+
+
+@app.delete("/deleteApplication")
+async def deleteApplication(
+    id: str,
+    applicationsDb=Depends(getApplicationsDb),
+    user=Depends(verify),
+):
+    """拒绝申请：与老站一致，直接删除（不保留记录、不发邮件）"""
+    try:
+        result = await applicationsDb.delete_one({"_id": _objectId(id)})
+        if result.deleted_count == 0:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "fail", "error": "申请不存在或已被处理"},
+            )
+        return {"message": "success"}
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(
             status_code=500, detail={"message": "fail", "error": str(e)}

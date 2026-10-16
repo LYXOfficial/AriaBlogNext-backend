@@ -25,6 +25,8 @@ from update.image.main import app as appUpdateImage
 
 from access.user.main import app as appUserLogin
 
+from flink.main import app as appFlink
+
 app = FastAPI()
 
 app.add_middleware(
@@ -54,6 +56,9 @@ app.include_router(appUpdateFlink, prefix="/update/flink")
 app.include_router(appUpdateImage, prefix="/update/image")
 
 app.include_router(appUserLogin, prefix="/access/user")
+
+# 友链申请：公开提交（无需登录），限流与 XSS 校验在模块内
+app.include_router(appFlink, prefix="/flink")
 
 if __name__ == "__main__":
     uvicorn.run(app="server:app", host="0.0.0.0", port=2333, reload=True)
