@@ -3,11 +3,6 @@ import os, re
 import pymongo
 from dotenv import load_dotenv
 
-load_dotenv()
-myclient = pymongo.MongoClient(os.getenv("MONGODB_URI"))
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="gb18030")
-res = []
-
 
 def clean_markdown(text):
     # 移除Markdown语法中的符号
@@ -40,41 +35,55 @@ def clean_markdown(text):
     return cleaned_text.strip()
 
 
-for i in os.listdir("importer/posts"):
-    with open("importer/posts/" + i, "r", encoding="utf-8") as f:
-        textContent = f.read()
-        data = yaml.safe_load(textContent.split("---")[1])
-        print(data["title"])
-        plainContent = ("---".join(textContent.split("---")[2:])).strip()
-        plainContent = clean_markdown(plainContent).replace("\n", " ")
-        wordCount = len(
-            re.findall(r"\b\w+\b", "---".join(textContent.split("---")[2:]))
-            + re.findall(r"[\u4e00-\u9fff]", "---".join(textContent.split("---")[2:]))
-        )
-        plainContent = plainContent[:201]
-        res.append(
-            {
-                "title": data.get("title"),
-                "description": data.get("description"),
-                "mdContent": "---".join(textContent.split("---")[2:]),
-                "tags": (
-                    data.get("tags", [])
-                    if type(data.get("tags", [])) == list
-                    else [data.get("tags")]
-                ),
-                "category": (
-                    data.get("categories", [""])[0]
-                    if type(data.get("categories", [""])) == list
-                    else data.get("categories")
-                ),
-                "publishTime": data.get("date").timestamp(),
-                "lastUpdatedTime": data.get("updated").timestamp(),
-                "slug": data.get("abbrlink"),
-                "bannerImg": data.get("cover"),
-                "plainContent": plainContent,
-                "wordCount": wordCount,
-                "coverFit": data.get("cover-fit"),
-            }
-        )
-myclient[os.getenv("DB_NAME") or "AriaBlogNext"]["Posts"].delete_many({})
-myclient[os.getenv("DB_NAME") or "AriaBlogNext"]["Posts"].insert_many(res)
+def import_posts():
+    load_dotenv()
+    myclient = pymongo.MongoClient(os.getenv("MONGODB_URI"))
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="gb18030")
+    res = []
+
+    for i in os.listdir("importer/posts"):
+        with open("importer/posts/" + i, "r", encoding="utf-8") as f:
+            textContent = f.read()
+            data = yaml.safe_load(textContent.split("---")[1])
+            print(data["title"])
+            plainContent = ("---".join(textContent.split("---")[2:])).strip()
+            plainContent = clean_markdown(plainContent).replace("\n", " ")
+            wordCount = len(
+                re.findall(r"\b\w+\b", "---".join(textContent.split("---")[2:]))
+                + re.findall(
+                    r"[\u4e00-\u9fff]", "---".join(textContent.split("---")[2:])
+                )
+            )
+            plainContent = plainContent[:201]
+            res.append(
+                {
+                    "title": data.get("title"),
+                    "description": data.get("description"),
+                    "mdContent": "---".join(textContent.split("---")[2:]),
+                    "tags": (
+                        data.get("tags", [])
+                        if type(data.get("tags", [])) == list
+                        else [data.get("tags")]
+                    ),
+                    "category": (
+                        data.get("categories", [""])[0]
+                        if type(data.get("categories", [""])) == list
+                        else data.get("categories")
+                    ),
+                    "publishTime": data.get("date").timestamp(),
+                    "lastUpdatedTime": data.get("updated").timestamp(),
+                    "slug": data.get("abbrlink"),
+                    "bannerImg": data.get("cover"),
+                    "plainContent": plainContent,
+                    "wordCount": wordCount,
+                    "coverFit": data.get("cover-fit"),
+                }
+            )
+    myclient[os.getenv("DB_NAME") or "AriaBlogNext"]["Posts"].delete_many({})
+    myclient[os.getenv("DB_NAME") or "AriaBlogNext"]["Posts"].insert_many(res)
+
+
+# 破坏性写库操作必须在 __main__ 下执行：
+# 否则任何一次 import（测试扫描、IDE 自动导入）都会清空 Posts 集合（全部文章）。
+if __name__ == "__main__":
+    import_posts()

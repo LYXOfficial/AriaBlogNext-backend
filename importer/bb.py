@@ -1,15 +1,8 @@
 import json
 import pymongo
 import os, re, time
-import pymongo
 from datetime import datetime
 from dotenv import load_dotenv
-
-load_dotenv()
-myclient = pymongo.MongoClient(os.getenv("MONGODB_URI"))[
-    os.getenv("DB_NAME") or "AriaBlogNext"
-]["Speaks"]
-myclient.delete_many({})
 
 
 def iso_to_unix(iso_string):
@@ -70,15 +63,28 @@ def replace_links_and_images(text):
     return text
 
 
-with open("importer/bb.json", encoding="utf-8") as f:
-    data = json.load(f)
-    for item in data:
-        myclient.insert_one(
-            {
-                "content": replace_links_and_images(item["content"]),
-                "plainContent": replace_and_remove_tags(item["content"]).replace(
-                    "\n", " "
-                ),
-                "time": iso_to_unix(item["createdAt"]),
-            }
-        )
+def import_speaks():
+    load_dotenv()
+    myclient = pymongo.MongoClient(os.getenv("MONGODB_URI"))[
+        os.getenv("DB_NAME") or "AriaBlogNext"
+    ]["Speaks"]
+    myclient.delete_many({})
+
+    with open("importer/bb.json", encoding="utf-8") as f:
+        data = json.load(f)
+        for item in data:
+            myclient.insert_one(
+                {
+                    "content": replace_links_and_images(item["content"]),
+                    "plainContent": replace_and_remove_tags(item["content"]).replace(
+                        "\n", " "
+                    ),
+                    "time": iso_to_unix(item["createdAt"]),
+                }
+            )
+
+
+# 破坏性写库操作必须在 __main__ 下执行：
+# 否则任何一次 import（测试扫描、IDE 自动导入）都会清空 Speaks 集合。
+if __name__ == "__main__":
+    import_speaks()
