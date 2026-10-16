@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 import motor.motor_asyncio as motor
-import os, jwt
+import os, jwt, re
 
 SECRET_KEY = os.environ.get("SECRET")
 ALGORITHM = "HS256"
