@@ -2,11 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, Form, Header,
 import os
 import jwt
 import boto3
+import httpx
+import ipaddress
 import secrets
+import socket
 from datetime import datetime
 import asyncio
 from urllib.parse import urlparse
 from typing import List
+from pydantic import BaseModel
 import re
 
 # env
@@ -247,6 +251,101 @@ async def reupload_image(
         return {"message": "success", "data": {"data": {"links": {"url": url}}}}
     except HTTPException as e:
         raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail={"message": "fail", "error": str(e)}
+        )
+
+
+# ---------- 外链图片转存到自有图床 ----------
+
+MAX_REHOST_BYTES = 3 * 1024 * 1024  # 3MB
+
+
+class RehostByUrlBody(BaseModel):
+    url: str = ""
+
+
+def _is_public_host(host: str) -> bool:
+    """SSRF 防护：只允许公网地址。"""
+    try:
+        ip = ipaddress.ip_address(socket.gethostbyname(host))
+    except Exception:
+        return False
+    return not (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+    )
+
+
+@app.post("/rehostImageByUrl")
+async def rehost_image_by_url(body: RehostByUrlBody, user=Depends(verify)):
+    """把外链图片下载后转存到本站图床（S3），返回新的地址。
+
+    仅管理员可调用；失败时返回明确的错误，前端可选择保留原地址。
+    """
+    if not (S3_ENDPOINT and S3_BUCKET and S3_PUBLIC_URL and S3_ACCESSKEYID):
+        raise HTTPException(
+            status_code=503,
+            detail={"message": "fail", "error": "图床未配置（缺少 S3_* 环境变量），无法转存"},
+        )
+
+    src = (body.url or "").strip()
+    if not re.match(r"^https?://", src, re.I):
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "fail", "error": "图片地址必须以 http:// 或 https:// 开头"},
+        )
+    host = urlparse(src).hostname or ""
+    if not host or not _is_public_host(host):
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "fail", "error": "该地址不允许转存"},
+        )
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=20,
+            follow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0 AriaBlogNext"},
+        ) as client:
+            res = await client.get(src)
+        if res.status_code != 200:
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "message": "fail",
+                    "error": f"下载图片失败（HTTP {res.status_code}）",
+                },
+            )
+
+        content_type = (
+            (res.headers.get("content-type") or "").split(";")[0].strip().lower()
+        )
+        ext = CONTENT_TYPE_EXT.get(content_type)
+        if not ext:
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "fail", "error": "对方返回的不是受支持的图片格式"},
+            )
+        if len(res.content) > MAX_REHOST_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "fail", "error": "图片超过 3MB，已跳过转存"},
+            )
+
+        now = datetime.utcnow()
+        key = f"{now:%Y/%m/%d}/{secrets.token_hex(7)[:13]}.{ext}"
+        await s3_put_object(key=key, body=res.content, content_type=content_type)
+        return {
+            "message": "success",
+            "data": {"url": f"{S3_PUBLIC_URL.rstrip('/')}/{key}"},
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail={"message": "fail", "error": str(e)}

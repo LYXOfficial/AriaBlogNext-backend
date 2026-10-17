@@ -1,10 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 import httpx
 import motor.motor_asyncio as motor
+import asyncio
 import os, jwt, uuid
+from datetime import datetime, timezone
 from bson import ObjectId
 from pydantic import BaseModel
 from typing import Optional
+
+from flink.mail import (
+    mail_configured,
+    send_mail,
+    application_approved,
+    application_rejected,
+)
 
 app = APIRouter()
 SECRET_KEY = os.environ.get("SECRET")
@@ -280,6 +289,12 @@ class ApproveApplicationBody(BaseModel):
     color: Optional[str] = None
 
 
+class RejectApplicationBody(BaseModel):
+    id: str
+    # 可选：填了理由才会给对方发邮件，不填则静默丢弃
+    reason: Optional[str] = ""
+
+
 async def getApplicationsDb():
     mongoClient = motor.AsyncIOMotorClient(
         os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
@@ -300,9 +315,9 @@ def _objectId(raw: str) -> ObjectId:
 async def getApplications(
     applicationsDb=Depends(getApplicationsDb), user=Depends(verify)
 ):
-    """待审核的友链申请（新增与修改申请都在这里）"""
+    """待审核的友链申请（新增与修改申请都在这里，按提交时间排队）"""
     try:
-        cursor = applicationsDb.find({}).sort("createdAt", 1)
+        cursor = applicationsDb.find({"status": "pending"}).sort("createdAt", 1)
         results = await cursor.to_list(length=200)
         for item in results:
             item["id"] = str(item.pop("_id"))
@@ -381,8 +396,25 @@ async def approveApplication(
                 {"name": body.group}, {"$push": {"links": flink}}, upsert=True
             )
 
-        await applicationsDb.delete_one({"_id": _objectId(body.id)})
-        return {"message": "success"}
+        await applicationsDb.update_one(
+            {"_id": _objectId(body.id)},
+            {
+                "$set": {
+                    "status": "approved",
+                    "decidedAt": datetime.now(timezone.utc),
+                    "reason": "",
+                }
+            },
+        )
+
+        # 审核通过后给申请人发通知（失败不影响结果，只回传给前端用于提示）
+        mail_sent = False
+        applicant_email = (application.get("email") or "").strip()
+        is_modify = application.get("type", 0) == 1
+        if mail_configured() and applicant_email:
+            subject, content = application_approved(name, link, body.group, is_modify)
+            mail_sent = await asyncio.to_thread(send_mail, applicant_email, subject, content)
+        return {"message": "success", "mailSent": mail_sent}
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -391,21 +423,48 @@ async def approveApplication(
         )
 
 
-@app.delete("/deleteApplication")
-async def deleteApplication(
-    id: str,
+@app.post("/rejectApplication")
+async def rejectApplication(
+    body: RejectApplicationBody,
     applicationsDb=Depends(getApplicationsDb),
     user=Depends(verify),
 ):
-    """拒绝申请：与老站一致，直接删除（不保留记录、不发邮件）"""
+    """拒绝申请：可选填理由。
+
+    - 填了理由：给申请人发邮件说明原因
+    - 不填理由：静默丢弃，不发邮件
+    两种都会把状态置为 rejected 并记录 decidedAt，保留 14 天（申请人可自查），到期后自动清理。
+    """
     try:
-        result = await applicationsDb.delete_one({"_id": _objectId(id)})
-        if result.deleted_count == 0:
+        application = await applicationsDb.find_one({"_id": _objectId(body.id)})
+        if not application:
             raise HTTPException(
                 status_code=404,
                 detail={"message": "fail", "error": "申请不存在或已被处理"},
             )
-        return {"message": "success"}
+
+        reason = (body.reason or "").strip()
+        await applicationsDb.update_one(
+            {"_id": _objectId(body.id)},
+            {
+                "$set": {
+                    "status": "rejected",
+                    "reason": reason,
+                    "decidedAt": datetime.now(timezone.utc),
+                }
+            },
+        )
+
+        mail_sent = False
+        applicant_email = (application.get("email") or "").strip()
+        if reason and mail_configured() and applicant_email:
+            subject, content = application_rejected(
+                application.get("name", ""), application.get("link", ""), reason
+            )
+            mail_sent = await asyncio.to_thread(
+                send_mail, applicant_email, subject, content
+            )
+        return {"message": "success", "mailSent": mail_sent}
     except HTTPException as e:
         raise e
     except Exception as e:

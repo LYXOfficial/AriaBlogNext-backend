@@ -1,11 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 import motor.motor_asyncio as motor
+import asyncio
 import os
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from bson import ObjectId
 from pydantic import BaseModel
 from typing import Optional
+
+from flink.mail import (
+    mail_configured,
+    send_mail,
+    application_received,
+    admin_new_application,
+)
 
 app = APIRouter()
 
@@ -14,6 +23,23 @@ MAX_DESCR = 200
 MAX_URL = 300
 RATE_LIMIT_COUNT = 5  # 时间窗内同一 IP 允许的申请次数
 RATE_LIMIT_WINDOW = 1800  # 秒
+
+PENDING_LIMIT = 10  # 待审核队列上限
+RETENTION_DAYS = 14  # 审核结果保留天数（超时清理）
+
+
+async def purge_expired(applicationsDb):
+    """清理「已出结果」且超过保留期的申请记录（14 天）。
+
+    待审核的不清理；时间字段以 decidedAt 为准。清理失败不影响主流程。
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
+    try:
+        await applicationsDb.delete_many(
+            {"status": {"$ne": "pending"}, "decidedAt": {"$lt": cutoff}}
+        )
+    except Exception:
+        pass
 
 # 任何带标签/协议/事件属性的输入都按 XSS 拒绝（老站同样返回 406）
 XSS_PATTERN = re.compile(
@@ -38,6 +64,17 @@ class ApplyRequestBody(BaseModel):
     color: Optional[str] = ""
     type: Optional[int] = 0  # 0=新增友链申请，1=修改已有友链
     targetUrl: Optional[str] = ""  # type=1 时填当前已收录的地址
+
+
+class WithdrawBody(BaseModel):
+    id: str = ""
+    email: str = ""
+
+
+class UpdateApplicationBody(ApplyRequestBody):
+    """申请人修改自己待审申请的内容（类型与目标友链保持不变）"""
+
+    id: str = ""
 
 
 async def getLinksDb():
@@ -123,8 +160,8 @@ def validate_application(body: ApplyRequestBody) -> Optional[tuple[int, str]]:
     avatar = (body.avatar or "").strip()
     color = (body.color or "").strip()
 
-    if not name or not link or not avatar or not descr or not email:
-        return 400, "站点名称、网址、头像、描述、邮箱均为必填"
+    if not name or not link or not avatar or not email:
+        return 400, "站点名称、网址、头像、邮箱均为必填"
     if len(name) > MAX_NAME or len(descr) > MAX_DESCR:
         return 400, f"站点名称不超过 {MAX_NAME} 字，描述不超过 {MAX_DESCR} 字"
     if not URL_PATTERN.match(link) or len(link) > MAX_URL:
@@ -171,6 +208,18 @@ async def applyFlink(
     color = (body.color or "").strip()
 
     try:
+        # 先清掉过期结果，再判断队列容量
+        await purge_expired(applicationsDb)
+        pending = await applicationsDb.count_documents({"status": "pending"})
+        if pending >= PENDING_LIMIT:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "message": "fail",
+                    "error": "申请列表已满，请稍后再提交",
+                },
+            )
+
         target_id = None
         target_group = None
 
@@ -189,7 +238,7 @@ async def applyFlink(
             target_id = found["link"].get("id")
             # 同一个友链只允许存在一条待审的修改申请
             duplicated = await applicationsDb.find_one(
-                {"targetId": target_id, "type": 1}, {"_id": 1}
+                {"targetId": target_id, "type": 1, "status": "pending"}, {"_id": 1}
             )
         else:
             # 新增申请：已收录 / 已提交过的都拦下来，避免重复
@@ -203,7 +252,8 @@ async def applyFlink(
                     },
                 )
             duplicated = await applicationsDb.find_one(
-                {"link": normalize_url(link), "type": 0}, {"_id": 1}
+                {"link": normalize_url(link), "type": 0, "status": "pending"},
+                {"_id": 1},
             )
 
         if duplicated:
@@ -211,6 +261,11 @@ async def applyFlink(
                 status_code=409,
                 detail={"message": "fail", "error": "该网址已有待审核的申请，请耐心等待"},
             )
+
+        # 同一邮箱重新提交时，清掉它旧的「已出结果」记录（相当于重新排队）
+        await applicationsDb.delete_many(
+            {"email": email, "status": {"$ne": "pending"}}
+        )
 
         await applicationsDb.insert_one(
             {
@@ -223,11 +278,15 @@ async def applyFlink(
                 "email": email,
                 "targetId": target_id,
                 "targetGroup": target_group,
+                "targetUrl": (body.targetUrl or "").strip(),
+                "status": "pending",
+                "reason": "",
                 "createdAt": datetime.now(timezone.utc),
+                "decidedAt": None,
                 "ip": ip,
             }
         )
-        return {"message": "success"}
+        return {"message": "success", "mailSent": await _notify_new_application(name, link, email, body.type)}
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -236,9 +295,24 @@ async def applyFlink(
         )
 
 
+async def _notify_new_application(name: str, link: str, email: str, kind: int) -> bool:
+    """给申请人发回执、给博主（若配置了 FLINK_ADMIN_EMAIL）发提醒。
+    邮件失败不影响申请本身，只把结果回给前端用于提示。"""
+    if not mail_configured():
+        return False
+    is_modify = kind == 1
+    subject, content = application_received(name, link, is_modify)
+    sent = await asyncio.to_thread(send_mail, email, subject, content)
+    admin_email = (os.environ.get("FLINK_ADMIN_EMAIL") or "").strip()
+    if admin_email:
+        a_subject, a_content = admin_new_application(name, link, email, is_modify)
+        await asyncio.to_thread(send_mail, admin_email, a_subject, a_content)
+    return sent
+
+
 @app.get("/apply/status")
 async def getApplyStatus(email: str, applicationsDb=Depends(getApplicationsDb)):
-    """无邮件通知，申请人可用邮箱自查进度"""
+    """申请人用邮箱自查进度"""
     email = (email or "").strip()
     if not EMAIL_PATTERN.match(email):
         raise HTTPException(
@@ -246,11 +320,161 @@ async def getApplyStatus(email: str, applicationsDb=Depends(getApplicationsDb)):
             detail={"message": "fail", "error": "邮箱格式不正确"},
         )
     try:
-        cursor = applicationsDb.find({"email": email}, {"_id": 1, "type": 1, "name": 1, "link": 1, "createdAt": 1})
+        await purge_expired(applicationsDb)
+        cursor = (
+            applicationsDb.find(
+                {"email": email},
+                {
+                    "_id": 1,
+                    "type": 1,
+                    "name": 1,
+                    "link": 1,
+                    "avatar": 1,
+                    "descr": 1,
+                    "color": 1,
+                    "targetUrl": 1,
+                    "targetGroup": 1,
+                    "status": 1,
+                    "reason": 1,
+                    "createdAt": 1,
+                    "decidedAt": 1,
+                },
+            )
+            .sort("createdAt", -1)
+        )
         results = await cursor.to_list(length=20)
         for item in results:
             item["id"] = str(item.pop("_id"))
+            for key in ("createdAt", "decidedAt"):
+                value = item.get(key)
+                item[key] = (
+                    value.isoformat() if hasattr(value, "isoformat") else value
+                )
         return {"message": "success", "data": results}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail={"message": "fail", "error": str(e)}
+        )
+
+
+async def _own_pending(applicationsDb, app_id: str, email: str):
+    """取出「属于该邮箱、且仍在待审」的申请；否则抛出对应错误。"""
+    try:
+        oid = ObjectId(app_id)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "fail", "error": "申请 id 不合法"},
+        )
+    doc = await applicationsDb.find_one({"_id": oid})
+    if not doc:
+        raise HTTPException(
+            status_code=404,
+            detail={"message": "fail", "error": "申请不存在或已被处理"},
+        )
+    if (doc.get("email") or "").strip().lower() != (email or "").strip().lower():
+        raise HTTPException(
+            status_code=403,
+            detail={"message": "fail", "error": "邮箱与申请不匹配"},
+        )
+    if doc.get("status") != "pending":
+        raise HTTPException(
+            status_code=409,
+            detail={"message": "fail", "error": "该申请已处理，无法再操作"},
+        )
+    return doc
+
+
+@app.post("/apply/withdraw")
+async def withdrawApplication(
+    body: WithdrawBody, applicationsDb=Depends(getApplicationsDb)
+):
+    """申请人撤销自己的待审申请，撤销后立即移出队列。"""
+    doc = await _own_pending(applicationsDb, body.id, body.email)
+    try:
+        await applicationsDb.delete_one({"_id": doc["_id"]})
+        return {"message": "success"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail={"message": "fail", "error": str(e)}
+        )
+
+
+@app.post("/apply/update")
+async def updateApplication(
+    body: UpdateApplicationBody,
+    linksDb=Depends(getLinksDb),
+    applicationsDb=Depends(getApplicationsDb),
+):
+    """申请人修改自己待审申请的内容（申请类型与目标友链保持不变）。"""
+    doc = await _own_pending(applicationsDb, body.id, body.email)
+
+    # 复用同一套字段校验；邮箱与类型取库里已存的，避免被改身份
+    merged = ApplyRequestBody(
+        name=body.name,
+        link=body.link,
+        avatar=body.avatar,
+        descr=body.descr,
+        email=doc.get("email") or "",
+        color=body.color,
+        type=doc.get("type", 0),
+        targetUrl=doc.get("targetUrl") or "",
+    )
+    invalid = validate_application(merged)
+    if invalid:
+        status, message = invalid
+        raise HTTPException(
+            status_code=status, detail={"message": "fail", "error": message}
+        )
+
+    link = (body.link or "").strip()
+    try:
+        # 改成了新网址：重新做重复校验（已收录 / 别人的待审申请）
+        if normalize_url(link) != normalize_url(doc.get("link") or ""):
+            if doc.get("type", 0) == 0:
+                exists = await find_link(linksDb, link)
+                if exists:
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "message": "fail",
+                            "error": "该网址已经在友链里了，如需修改请提交修改申请",
+                        },
+                    )
+                duplicated = await applicationsDb.find_one(
+                    {
+                        "link": normalize_url(link),
+                        "type": 0,
+                        "status": "pending",
+                        "_id": {"$ne": doc["_id"]},
+                    },
+                    {"_id": 1},
+                )
+                if duplicated:
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "message": "fail",
+                            "error": "该网址已有待审核的申请，请耐心等待",
+                        },
+                    )
+
+        await applicationsDb.update_one(
+            {"_id": doc["_id"]},
+            {
+                "$set": {
+                    "name": merged.name.strip(),
+                    "link": link,
+                    "avatar": merged.avatar.strip(),
+                    "descr": merged.descr.strip(),
+                    "color": (merged.color or "").strip(),
+                    "updatedAt": datetime.now(timezone.utc),
+                }
+            },
+        )
+        return {"message": "success"}
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(
             status_code=500, detail={"message": "fail", "error": str(e)}
