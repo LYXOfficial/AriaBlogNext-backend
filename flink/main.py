@@ -24,7 +24,7 @@ MAX_URL = 300
 RATE_LIMIT_COUNT = 5  # 时间窗内同一 IP 允许的申请次数
 RATE_LIMIT_WINDOW = 1800  # 秒
 
-PENDING_LIMIT = 10  # 待审核队列上限
+PENDING_LIMIT = 20  # 待审核队列上限
 RETENTION_DAYS = 14  # 审核结果保留天数（超时清理）
 
 
@@ -116,6 +116,31 @@ def _check_rate(ip: str) -> bool:
         for key in [k for k, v in _rate.items() if not any(now - t < RATE_LIMIT_WINDOW for t in v)]:
             _rate.pop(key, None)
     return True
+
+
+def _norm_text(value) -> str:
+    return (value or "").strip()
+
+
+def _norm_url_text(value) -> str:
+    text = _norm_text(value)
+    return text[:-1] if text.endswith("/") else text
+
+
+def _norm_color(value) -> str:
+    # 卡片渲染时缺省用 #888888，这里保持一致
+    return (_norm_text(value) or "#888888").lower()
+
+
+def is_same_as_current(current: dict, name, link, avatar, descr, color) -> bool:
+    """修改申请的内容与现网友链完全一致时返回 True（无变化）"""
+    return (
+        _norm_text(current.get("name")) == _norm_text(name)
+        and _norm_url_text(current.get("url")) == _norm_url_text(link)
+        and _norm_text(current.get("avatar")) == _norm_text(avatar)
+        and _norm_text(current.get("description")) == _norm_text(descr)
+        and _norm_color(current.get("color")) == _norm_color(color)
+    )
 
 
 def normalize_url(url: str) -> str:
@@ -232,6 +257,14 @@ async def applyFlink(
                     detail={
                         "message": "fail",
                         "error": "没有找到这个网址的友链，请确认填写的是当前已收录的地址",
+                    },
+                )
+            if is_same_as_current(found["link"], name, link, avatar, descr, color):
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": "fail",
+                        "error": "内容与当前友链完全一致，无需提交修改申请",
                     },
                 )
             target_group = found["group"]
@@ -448,6 +481,30 @@ async def updateApplication(
         )
 
     link = (body.link or "").strip()
+
+    # 把修改申请改成「和现网完全一样」时也拦下来
+    if doc.get("type", 0) == 1:
+        target = await linksDb.find_one(
+            {"name": doc.get("targetGroup"), "links.id": doc.get("targetId")},
+            {"links.$": 1},
+        )
+        current = (target or {}).get("links", [None])[0]
+        if current and is_same_as_current(
+            current,
+            merged.name,
+            link,
+            merged.avatar,
+            merged.descr,
+            merged.color,
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "fail",
+                    "error": "内容与当前友链完全一致，无需提交修改申请",
+                },
+            )
+
     try:
         # 改成了新网址：重新做重复校验（已收录 / 别人的待审申请）
         if normalize_url(link) != normalize_url(doc.get("link") or ""):

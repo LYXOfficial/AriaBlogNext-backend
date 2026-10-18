@@ -362,19 +362,11 @@ async def approveApplication(
                     status_code=409,
                     detail={"message": "fail", "error": "该修改申请缺少目标友链信息"},
                 )
-            result = await linksDb.update_one(
-                {"name": target_group, "links.id": target_id},
-                {
-                    "$set": {
-                        "links.$.name": name,
-                        "links.$.url": link,
-                        "links.$.avatar": avatar,
-                        "links.$.description": descr,
-                        "links.$.color": color,
-                    }
-                },
+
+            source = await linksDb.find_one(
+                {"name": target_group, "links.id": target_id}, {"links.$": 1}
             )
-            if result.matched_count == 0:
+            if not source or not source.get("links"):
                 raise HTTPException(
                     status_code=404,
                     detail={
@@ -382,6 +374,60 @@ async def approveApplication(
                         "error": "原友链已不存在（可能被删除或移动过分组），无法应用修改",
                     },
                 )
+            original = source["links"][0]
+            updated_link = {
+                **original,
+                "name": name,
+                "url": link,
+                "avatar": avatar,
+                "description": descr,
+                "color": color,
+            }
+
+            # 审批时允许手动指定新分组：与原分组不同就移动过去
+            new_group = (body.group or "").strip() or target_group
+            if new_group != target_group:
+                # 先写入新分组（不存在则创建），成功后再从原分组移除
+                await linksDb.update_one(
+                    {"name": new_group}, {"$push": {"links": updated_link}}, upsert=True
+                )
+                pulled = await linksDb.update_one(
+                    {"name": target_group}, {"$pull": {"links": {"id": target_id}}}
+                )
+                if pulled.modified_count == 0:
+                    # 回滚，避免同一条友链同时存在于两个分组
+                    await linksDb.update_one(
+                        {"name": new_group},
+                        {"$pull": {"links": {"id": target_id}}},
+                    )
+                    raise HTTPException(
+                        status_code=500,
+                        detail={
+                            "message": "fail",
+                            "error": "移动分组失败，请重试",
+                        },
+                    )
+            else:
+                result = await linksDb.update_one(
+                    {"name": target_group, "links.id": target_id},
+                    {
+                        "$set": {
+                            "links.$.name": name,
+                            "links.$.url": link,
+                            "links.$.avatar": avatar,
+                            "links.$.description": descr,
+                            "links.$.color": color,
+                        }
+                    },
+                )
+                if result.matched_count == 0:
+                    raise HTTPException(
+                        status_code=404,
+                        detail={
+                            "message": "fail",
+                            "error": "原友链已不存在（可能被删除或移动过分组），无法应用修改",
+                        },
+                    )
         else:
             flink = {
                 "name": name,
