@@ -160,15 +160,15 @@ def validate_application(body: ApplyRequestBody) -> Optional[tuple[int, str]]:
     avatar = (body.avatar or "").strip()
     color = (body.color or "").strip()
 
-    if not name or not link or not avatar or not email:
-        return 400, "站点名称、网址、头像、邮箱均为必填"
+    if not name or not link or not avatar:
+        return 400, "站点名称、网址、头像均为必填"
     if len(name) > MAX_NAME or len(descr) > MAX_DESCR:
         return 400, f"站点名称不超过 {MAX_NAME} 字，描述不超过 {MAX_DESCR} 字"
     if not URL_PATTERN.match(link) or len(link) > MAX_URL:
         return 400, "网址格式不正确，必须以 http:// 或 https:// 开头"
     if not URL_PATTERN.match(avatar) or len(avatar) > MAX_URL:
         return 400, "头像格式不正确，必须以 http:// 或 https:// 开头"
-    if not EMAIL_PATTERN.match(email):
+    if email and not EMAIL_PATTERN.match(email):
         return 400, "邮箱格式不正确"
     if color and not COLOR_PATTERN.match(color):
         return 400, "颜色只支持 #十六进制 / rgb() / rgba() / hsl() / 颜色名"
@@ -263,9 +263,10 @@ async def applyFlink(
             )
 
         # 同一邮箱重新提交时，清掉它旧的「已出结果」记录（相当于重新排队）
-        await applicationsDb.delete_many(
-            {"email": email, "status": {"$ne": "pending"}}
-        )
+        if email:
+            await applicationsDb.delete_many(
+                {"email": email, "status": {"$ne": "pending"}}
+            )
 
         await applicationsDb.insert_one(
             {
@@ -308,12 +309,14 @@ async def _notify_new_application(
     if not mail_configured():
         return False
     is_modify = kind == 1
-    subject, text, html = application_received(name, link, is_modify, avatar, descr)
-    sent = await asyncio.to_thread(send_mail, email, subject, text, html)
+    sent = False
+    if email:
+        subject, text, html = application_received(name, link, is_modify, avatar, descr)
+        sent = await asyncio.to_thread(send_mail, email, subject, text, html)
     admin_email = (os.environ.get("FLINK_ADMIN_EMAIL") or "").strip()
     if admin_email:
         a_subject, a_text, a_html = admin_new_application(
-            name, link, email, is_modify, avatar, descr
+            name, link, email or "（未填写）", is_modify, avatar, descr
         )
         await asyncio.to_thread(send_mail, admin_email, a_subject, a_text, a_html)
     return sent
@@ -380,6 +383,14 @@ async def _own_pending(applicationsDb, app_id: str, email: str):
         raise HTTPException(
             status_code=404,
             detail={"message": "fail", "error": "申请不存在或已被处理"},
+        )
+    if not (doc.get("email") or "").strip():
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "fail",
+                "error": "该申请提交时没有填写邮箱，无法自助修改或撤销",
+            },
         )
     if (doc.get("email") or "").strip().lower() != (email or "").strip().lower():
         raise HTTPException(
