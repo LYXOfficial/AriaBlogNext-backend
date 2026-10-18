@@ -15,7 +15,6 @@
   FLINK_ADMIN_EMAIL 可选，博主邮箱：有新申请时抄送一份
   SITE_NAME         站点名称（邮件里的品牌名）
   SITE_URL          站点地址，用于「前往友链页」按钮
-  SITE_LOGO         站点图标
   FLINK_ADMIN_PANEL_URL 可选，后台地址（博主邮件里的「去后台处理」按钮）
 
 未配置 SMTP_HOST/SMTP_USER/SMTP_PASS 时所有发送都静默跳过，接口照常返回成功。
@@ -52,9 +51,6 @@ def _site() -> dict:
     return {
         "name": _setting("SITE_NAME", "Ariasakaの小窝"),
         "url": _setting("SITE_URL", "https://blog.yaria.top").rstrip("/"),
-        "logo": _setting(
-            "SITE_LOGO", "https://img.0v0.my/2025/10/12/6dd5eec4823f8.webp"
-        ),
         "admin": _setting("FLINK_ADMIN_PANEL_URL").rstrip("/"),
     }
 
@@ -224,7 +220,6 @@ def _render_html(
 ) -> str:
     site = _site()
     body = "".join(paragraphs) + "".join(blocks or []) + _button(cta_text, cta_url)
-    logoSrc = escape(site["logo"])
     site_name = escape(site["name"])
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -247,23 +242,12 @@ def _render_html(
               <td style="background:{COLOR_THEME_LIGHT};
                          background-image:linear-gradient(135deg,{COLOR_THEME_LIGHT},{COLOR_THEME});
                          padding:20px 24px;">
-                <table role="presentation" cellpadding="0" cellspacing="0">
-                  <tr>
-                    <td width="46" valign="middle">
-                      <img src="{logoSrc}" width="38" height="38" alt=""
-                           style="display:block;width:38px;height:38px;
-                                  border-radius:50%;background:#ffffff55;" />
-                    </td>
-                    <td valign="middle" style="padding-left:12px;">
-                      <div style="font-size:17px;font-weight:700;color:#ffffff;">
-                        {site_name}
-                      </div>
-                      <div style="margin-top:3px;font-size:12px;color:#ffffffd0;">
-                        友链申请通知
-                      </div>
-                    </td>
-                  </tr>
-                </table>
+                <div style="font-size:17px;font-weight:700;color:#ffffff;">
+                  {site_name}
+                </div>
+                <div style="margin-top:4px;font-size:12px;color:#ffffffd0;">
+                  友链申请通知
+                </div>
               </td>
             </tr>
           </table>
