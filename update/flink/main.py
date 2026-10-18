@@ -252,7 +252,7 @@ async def updateGroup(
 
 
 @app.get("/dispatchCheckLatencyWorkflow")
-async def dispatchCheckLatencyWorkflow():
+async def dispatchCheckLatencyWorkflow(user=Depends(verify)):
     try:
         req = httpx.post(
             "https://api.github.com/repos/lyxofficial/check-flink/actions/workflows/check_links.yml/dispatches",

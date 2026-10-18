@@ -399,11 +399,3 @@ async def rehost_image_by_url(body: RehostByUrlBody, user=Depends(verify)):
             status_code=500, detail={"message": "fail", "error": str(e)}
         )
 
-
-@app.get("/hostInfo")
-async def host_info(user=Depends(verify)):
-    """返回本站图床的公开地址前缀，供后台判断某个图片是否已在自有图床。"""
-    return {
-        "message": "success",
-        "data": {"publicUrl": (S3_PUBLIC_URL or "").rstrip("/")},
-    }
