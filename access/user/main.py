@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 SECRET_KEY = os.environ.get("SECRET")
 ALGORITHM = "HS256"
 
+from db import get_database
+
 app = APIRouter()
 
 # ---- 进程内登录爆破防护 ----
@@ -67,10 +69,7 @@ class LoginRequestBody(BaseModel):
 
 
 async def getDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["Users"]
+    return get_database()["Users"]
 
 
 async def verify(authorization: str = Header(None)):

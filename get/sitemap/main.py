@@ -3,14 +3,13 @@ import motor.motor_asyncio as motor
 import xml.etree.ElementTree as ET
 import os, datetime
 
+from db import get_database
+
 app = APIRouter()
 
 
 async def getDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["Posts"]
+    return get_database()["Posts"]
 
 
 @app.get("/sitemapGen")

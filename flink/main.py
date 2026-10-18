@@ -16,6 +16,8 @@ from flink.mail import (
     admin_new_application,
 )
 
+from db import get_database
+
 app = APIRouter()
 
 MAX_NAME = 50
@@ -78,17 +80,11 @@ class UpdateApplicationBody(ApplyRequestBody):
 
 
 async def getLinksDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["FLinks"]
+    return get_database()["FLinks"]
 
 
 async def getApplicationsDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["FLinkApplications"]
+    return get_database()["FLinkApplications"]
 
 
 # 进程内限流：Vercel 多实例下按实例独立，能挡住单点刷申请（与登录爆破防护同样的取舍）
@@ -206,6 +202,78 @@ def validate_application(body: ApplyRequestBody) -> Optional[tuple[int, str]]:
     return None
 
 
+_DUPLICATE_PENDING_ERROR = {
+    "status_code": 409,
+    "detail": {"message": "fail", "error": "该网址已有待审核的申请，请耐心等待"},
+}
+
+
+async def _ensure_capacity(applicationsDb) -> None:
+    """清理过期结果并检查待审队列是否已满。"""
+    await purge_expired(applicationsDb)
+    pending = await applicationsDb.count_documents({"status": "pending"})
+    if pending >= PENDING_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail={"message": "fail", "error": "申请列表已满，请稍后再提交"},
+        )
+
+
+async def _check_new_request(linksDb, applicationsDb, link: str) -> None:
+    """新增申请：已收录或已有待审重复时拒绝。"""
+    if await find_link(linksDb, link):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "fail",
+                "error": "该网址已经在友链里了，如需修改请提交修改申请",
+            },
+        )
+    duplicated = await applicationsDb.find_one(
+        {"link": normalize_url(link), "type": 0, "status": "pending"}, {"_id": 1}
+    )
+    if duplicated:
+        raise HTTPException(**_DUPLICATE_PENDING_ERROR)
+
+
+async def _check_modify_request(linksDb, applicationsDb, target_url: str, fields: dict):
+    """修改申请：目标友链必须存在、内容确有变化、且没有重复待审申请。
+
+    返回 (target_group, target_id)。
+    """
+    found = await find_link(linksDb, target_url)
+    if not found:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "message": "fail",
+                "error": "没有找到这个网址的友链，请确认填写的是当前已收录的地址",
+            },
+        )
+    if is_same_as_current(
+        found["link"],
+        fields["name"],
+        fields["link"],
+        fields["avatar"],
+        fields["descr"],
+        fields["color"],
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "fail",
+                "error": "内容与当前友链完全一致，无需提交修改申请",
+            },
+        )
+    target_id = found["link"].get("id")
+    duplicated = await applicationsDb.find_one(
+        {"targetId": target_id, "type": 1, "status": "pending"}, {"_id": 1}
+    )
+    if duplicated:
+        raise HTTPException(**_DUPLICATE_PENDING_ERROR)
+    return found["group"], target_id
+
+
 @app.post("/apply")
 async def applyFlink(
     body: ApplyRequestBody,
@@ -232,68 +300,25 @@ async def applyFlink(
     email = (body.email or "").strip()
     color = (body.color or "").strip()
 
-    try:
-        # 先清掉过期结果，再判断队列容量
-        await purge_expired(applicationsDb)
-        pending = await applicationsDb.count_documents({"status": "pending"})
-        if pending >= PENDING_LIMIT:
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "message": "fail",
-                    "error": "申请列表已满，请稍后再提交",
-                },
-            )
+    fields = {
+        "name": name,
+        "link": link,
+        "avatar": avatar,
+        "descr": descr,
+        "color": color,
+        "email": email,
+    }
 
-        target_id = None
-        target_group = None
+    try:
+        await _ensure_capacity(applicationsDb)
 
         if body.type == 1:
-            # 修改申请：必须能在已收录友链里找到，记录目标便于审批时定位
-            found = await find_link(linksDb, body.targetUrl or "")
-            if not found:
-                raise HTTPException(
-                    status_code=404,
-                    detail={
-                        "message": "fail",
-                        "error": "没有找到这个网址的友链，请确认填写的是当前已收录的地址",
-                    },
-                )
-            if is_same_as_current(found["link"], name, link, avatar, descr, color):
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "message": "fail",
-                        "error": "内容与当前友链完全一致，无需提交修改申请",
-                    },
-                )
-            target_group = found["group"]
-            target_id = found["link"].get("id")
-            # 同一个友链只允许存在一条待审的修改申请
-            duplicated = await applicationsDb.find_one(
-                {"targetId": target_id, "type": 1, "status": "pending"}, {"_id": 1}
+            target_group, target_id = await _check_modify_request(
+                linksDb, applicationsDb, body.targetUrl or "", fields
             )
         else:
-            # 新增申请：已收录 / 已提交过的都拦下来，避免重复
-            exists = await find_link(linksDb, link)
-            if exists:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "message": "fail",
-                        "error": "该网址已经在友链里了，如需修改请提交修改申请",
-                    },
-                )
-            duplicated = await applicationsDb.find_one(
-                {"link": normalize_url(link), "type": 0, "status": "pending"},
-                {"_id": 1},
-            )
-
-        if duplicated:
-            raise HTTPException(
-                status_code=409,
-                detail={"message": "fail", "error": "该网址已有待审核的申请，请耐心等待"},
-            )
+            target_group = target_id = None
+            await _check_new_request(linksDb, applicationsDb, link)
 
         # 同一邮箱重新提交时，清掉它旧的「已出结果」记录（相当于重新排队）
         if email:
@@ -304,12 +329,7 @@ async def applyFlink(
         await applicationsDb.insert_one(
             {
                 "type": body.type,
-                "name": name,
-                "link": link,
-                "avatar": avatar,
-                "descr": descr,
-                "color": color,
-                "email": email,
+                **fields,
                 "targetId": target_id,
                 "targetGroup": target_group,
                 "targetUrl": (body.targetUrl or "").strip(),

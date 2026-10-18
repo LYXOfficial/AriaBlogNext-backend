@@ -11,6 +11,10 @@ class DeletePostRequestBody(BaseModel):
     slug: str
 
 
+class RefreshSummaryRequestBody(BaseModel):
+    slug: str
+
+
 class UpdatePostRequestBody(BaseModel):
     slug: str
     title: str
@@ -47,14 +51,17 @@ def clean_markdown(text):
     return cleaned_text.strip()
 
 
+from db import get_database
+
 app = APIRouter()
 
 
 async def getDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["Posts"]
+    return get_database()["Posts"]
+
+
+async def getSummaryDb():
+    return get_database()["PostSummary"]
 
 
 async def verify(authorization: str = Header(None)):
@@ -194,3 +201,28 @@ async def addPost(
             status_code=500,
             detail={"message": "internal server error", "error": str(e)},
         )
+
+
+@app.post("/refreshSummary")
+async def refreshSummary(
+    body: RefreshSummaryRequestBody,
+    currentCollection=Depends(getDb),
+    summaryCollection=Depends(getSummaryDb),
+    user=Depends(verify),
+):
+    """管理员手动重新生成某篇文章的摘要（需登录）。"""
+    from get.post.main import generate_summary
+
+    summary = await generate_summary(body.slug, currentCollection, summaryCollection)
+    return {"message": "success", "data": summary}
+
+
+@app.get("/summary")
+async def getSummary(
+    slug: str,
+    summaryCollection=Depends(getSummaryDb),
+    user=Depends(verify),
+):
+    """仅读取已缓存的摘要（不触发生成），供 dashboard 预览。"""
+    doc = await summaryCollection.find_one({"slug": slug}, {"summary": 1})
+    return {"message": "success", "data": (doc or {}).get("summary") or None}

@@ -5,6 +5,8 @@ from pydantic import BaseModel
 
 SECRET_KEY = os.environ.get("SECRET")
 ALGORITHM = "HS256"
+from db import get_database
+
 app = APIRouter()
 
 
@@ -25,10 +27,7 @@ def replace_and_remove_tags(text):
 
 
 async def getDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["Speaks"]
+    return get_database()["Speaks"]
 
 
 async def verify(authorization: str = Header(None)):

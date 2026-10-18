@@ -9,6 +9,8 @@ import httpx
 SECRET_KEY = os.environ.get("SECRET")
 ALGORITHM = "HS256"
 
+from db import get_database
+
 app = APIRouter()
 
 
@@ -23,10 +25,7 @@ async def verify(authorization: str = Header(None)):
 
 
 async def getDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["webSiteInfo"]
+    return get_database()["webSiteInfo"]
 
 
 async def updateTime(currentCollection):

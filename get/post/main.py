@@ -3,21 +3,17 @@ import motor.motor_asyncio as motor
 import os, random, re, httpx
 from datetime import datetime, timedelta
 
+from db import get_database
+
 app = APIRouter()
 SF_TOKEN = os.environ.get("SF_TOKEN")
 
 async def getDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["Posts"]
+    return get_database()["Posts"]
 
 
 async def getSummaryDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["PostSummary"]
+    return get_database()["PostSummary"]
 
 
 @app.get("/postCount")
@@ -271,6 +267,53 @@ async def searchPostsByTitle(
         )
 
 
+async def _request_summary(post: dict) -> str:
+    """调用模型生成单篇摘要（不含缓存与限流逻辑）。"""
+    payload = {
+        "model": "Qwen/Qwen3-8B",
+        "messages": [
+            {
+                "role": "user",
+                "content": "你是一位专业的作家，接下来请用精炼并平易近人而并不高深的语言，尽可能更可爱且女性化一些，但尽量直截了当描述，不要做作，使用Aria作为作者的自称，写一份一百字左右的文章总结，态度要与作者表达的所保持一致，尽可能不要有幻觉，遇到你所不确定的部分和敏感的（政治或是较负面情绪等内容）请略过而不要回答，而遇到一些晦涩的东西可以尝试解释，接下来给你的文章是markdown格式的，请输出纯文本并使用中文回答我，不要输出多余的内容，只输出文章摘要的正文，不要输出换行符和在编程语言中的非法文字。接下来是文章的正文内容：\n"
+                + post["mdContent"],
+            }
+        ],
+        "extra_body": {"enable_thinking": False},
+    }
+    headers = {
+        "Authorization": f"Bearer {SF_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    response = httpx.post(
+        "https://api.siliconflow.cn/v1/chat/completions",
+        json=payload,
+        headers=headers,
+        timeout=60,
+    )
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": "fail", "error": "api error:" + str(response.text)},
+        )
+    return response.json()["choices"][0]["message"]["content"].replace("\n", "")
+
+
+async def generate_summary(slug: str, currentCollection, summaryCollection) -> str:
+    """生成并缓存摘要（供管理员手动刷新调用，不受 10 分钟限制）。"""
+    post = await currentCollection.find_one({"slug": slug})
+    if post is None:
+        raise HTTPException(
+            status_code=404, detail={"message": "fail", "error": "post not found"}
+        )
+    summary = await _request_summary(post)
+    await summaryCollection.update_one(
+        {"slug": post["slug"]},
+        {"$set": {"summary": summary, "lastRefreshTime": datetime.now()}},
+        upsert=True,
+    )
+    return summary
+
+
 @app.get("/postSummary")
 async def postSummary(
     slug: str,
@@ -300,50 +343,8 @@ async def postSummary(
                     },
                 )
 
-        post = await currentCollection.find_one({"slug": slug})
-        if post is None:
-            raise HTTPException(
-                status_code=404,
-                detail={"message": "fail", "error": "post not found"},
-            )
-
-        payload = {
-            "model": "Qwen/Qwen3-8B",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "你是一位专业的作家，接下来请用精炼并平易近人而并不高深的语言，尽可能更可爱且女性化一些，但尽量直截了当描述，不要做作，使用Aria作为作者的自称，写一份一百字左右的文章总结，态度要与作者表达的所保持一致，尽可能不要有幻觉，遇到你所不确定的部分和敏感的（政治或是较负面情绪等内容）请略过而不要回答，而遇到一些晦涩的东西可以尝试解释，接下来给你的文章是markdown格式的，请输出纯文本并使用中文回答我，不要输出多余的内容，只输出文章摘要的正文，不要输出换行符和在编程语言中的非法文字。接下来是文章的正文内容：\n"
-                    + post["mdContent"],
-                }
-            ],
-            "extra_body": {
-                "enable_thinking": False
-            }
-        }
-        headers = {
-            "Authorization": f"Bearer {SF_TOKEN}",
-            "Content-Type": "application/json",
-        }
-        response = httpx.post(
-            "https://api.siliconflow.cn/v1/chat/completions",
-            json=payload,
-            headers=headers,
-            timeout=60,
-        )
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "message": "fail",
-                    "error": "api error:" + str(response.text),
-                },
-            )
-        summary = response.json()["choices"][0]["message"]["content"].replace("\n","")
-        # 更新或插入摘要时包含刷新时间
-        await currentSummaryCollection.update_one(
-            {"slug": post["slug"]},
-            {"$set": {"summary": summary, "lastRefreshTime": datetime.now()}},
-            upsert=True,
+        summary = await generate_summary(
+            slug, currentCollection, currentSummaryCollection
         )
         return {"message": "success", "data": summary}
     except HTTPException as e:

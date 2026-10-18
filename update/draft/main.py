@@ -47,14 +47,13 @@ def clean_markdown(text):
     return cleaned_text.strip()
 
 
+from db import get_database
+
 app = APIRouter()
 
 
 async def getDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["Drafts"]
+    return get_database()["Drafts"]
 
 
 async def verify(authorization: str = Header(None)):

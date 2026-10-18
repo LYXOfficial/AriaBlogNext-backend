@@ -3,6 +3,8 @@ import motor.motor_asyncio as motor
 import os
 from pydantic import BaseModel
 
+from db import get_database
+
 app = APIRouter()
 SECRET_KEY = os.environ.get("SECRET")
 
@@ -12,10 +14,7 @@ class ExportCollectionsRequestBody(BaseModel):
 
 
 async def get_db():
-    mongo_client = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongo_client[os.getenv("DB_NAME") or "AriaBlogNext"]
+    return get_database()
 
 
 @app.post("/collections")

@@ -15,6 +15,8 @@ from flink.mail import (
     application_rejected,
 )
 
+from db import get_database
+
 app = APIRouter()
 SECRET_KEY = os.environ.get("SECRET")
 ALGORITHM = "HS256"
@@ -76,10 +78,7 @@ async def verify(authorization: str = Header(None)):
 
 
 async def getDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["FLinks"]
+    return get_database()["FLinks"]
 
 
 @app.post("/pushFlinkStatus")
@@ -296,10 +295,7 @@ class RejectApplicationBody(BaseModel):
 
 
 async def getApplicationsDb():
-    mongoClient = motor.AsyncIOMotorClient(
-        os.environ.get("MONGODB_URI") or "mongodb://localhost:27017"
-    )
-    return mongoClient[os.getenv("DB_NAME") or "AriaBlogNext"]["FLinkApplications"]
+    return get_database()["FLinkApplications"]
 
 
 def _objectId(raw: str) -> ObjectId:
@@ -332,6 +328,90 @@ async def getApplications(
         )
 
 
+# 审批字段 -> 友链文档字段
+_LINK_FIELD_MAP = {
+    "name": "name",
+    "link": "url",
+    "avatar": "avatar",
+    "descr": "description",
+    "color": "color",
+}
+
+_MISSING_LINK_ERROR = {
+    "status_code": 404,
+    "detail": {
+        "message": "fail",
+        "error": "原友链已不存在（可能被删除或移动过分组），无法应用修改",
+    },
+}
+
+
+def _link_doc(fields: dict) -> dict:
+    """把审批字段转成友链文档字段"""
+    return {_LINK_FIELD_MAP[key]: value for key, value in fields.items()}
+
+
+async def _replace_link(linksDb, application: dict, group: str, fields: dict) -> None:
+    """按审批内容更新原友链；group 与原分组不同则把友链移动过去。"""
+    target_group = application.get("targetGroup")
+    target_id = application.get("targetId")
+    if not target_group or not target_id:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": "fail", "error": "该修改申请缺少目标友链信息"},
+        )
+
+    source = await linksDb.find_one(
+        {"name": target_group, "links.id": target_id}, {"links.$": 1}
+    )
+    if not source or not source.get("links"):
+        raise HTTPException(**_MISSING_LINK_ERROR)
+
+    new_group = (group or "").strip() or target_group
+    if new_group == target_group:
+        result = await linksDb.update_one(
+            {"name": target_group, "links.id": target_id},
+            {"$set": {f"links.$.{key}": value for key, value in _link_doc(fields).items()}},
+        )
+        if result.matched_count == 0:
+            raise HTTPException(**_MISSING_LINK_ERROR)
+        return
+
+    # 换分组：先写入新分组（不存在则创建），再从原分组移除；失败要回滚
+    moved = {**source["links"][0], **_link_doc(fields)}
+    await linksDb.update_one(
+        {"name": new_group}, {"$push": {"links": moved}}, upsert=True
+    )
+    pulled = await linksDb.update_one(
+        {"name": target_group}, {"$pull": {"links": {"id": target_id}}}
+    )
+    if pulled.modified_count == 0:
+        await linksDb.update_one(
+            {"name": new_group}, {"$pull": {"links": {"id": target_id}}}
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={"message": "fail", "error": "移动分组失败，请重试"},
+        )
+
+
+async def _append_new_link(linksDb, group: str, fields: dict) -> None:
+    """新增申请通过：追加到指定分组"""
+    await linksDb.update_one(
+        {"name": group},
+        {
+            "$push": {
+                "links": {
+                    **_link_doc(fields),
+                    "id": uuid.uuid4().hex[:8],
+                    "latency": 0,
+                }
+            }
+        },
+        upsert=True,
+    )
+
+
 @app.post("/approveApplication")
 async def approveApplication(
     body: ApproveApplicationBody,
@@ -348,99 +428,22 @@ async def approveApplication(
                 detail={"message": "fail", "error": "申请不存在或已被处理"},
             )
 
-        name = body.name or application.get("name", "")
-        link = (body.link or application.get("link", "")).strip()
-        avatar = body.avatar or application.get("avatar", "")
-        descr = body.descr or application.get("descr", "")
-        color = body.color if body.color is not None else application.get("color", "")
+        fields = {
+            "name": body.name or application.get("name", ""),
+            "link": (body.link or application.get("link", "")).strip(),
+            "avatar": body.avatar or application.get("avatar", ""),
+            "descr": body.descr or application.get("descr", ""),
+            "color": (
+                body.color
+                if body.color is not None
+                else application.get("color", "")
+            ),
+        }
 
         if application.get("type", 0) == 1:
-            target_group = application.get("targetGroup")
-            target_id = application.get("targetId")
-            if not target_group or not target_id:
-                raise HTTPException(
-                    status_code=409,
-                    detail={"message": "fail", "error": "该修改申请缺少目标友链信息"},
-                )
-
-            source = await linksDb.find_one(
-                {"name": target_group, "links.id": target_id}, {"links.$": 1}
-            )
-            if not source or not source.get("links"):
-                raise HTTPException(
-                    status_code=404,
-                    detail={
-                        "message": "fail",
-                        "error": "原友链已不存在（可能被删除或移动过分组），无法应用修改",
-                    },
-                )
-            original = source["links"][0]
-            updated_link = {
-                **original,
-                "name": name,
-                "url": link,
-                "avatar": avatar,
-                "description": descr,
-                "color": color,
-            }
-
-            # 审批时允许手动指定新分组：与原分组不同就移动过去
-            new_group = (body.group or "").strip() or target_group
-            if new_group != target_group:
-                # 先写入新分组（不存在则创建），成功后再从原分组移除
-                await linksDb.update_one(
-                    {"name": new_group}, {"$push": {"links": updated_link}}, upsert=True
-                )
-                pulled = await linksDb.update_one(
-                    {"name": target_group}, {"$pull": {"links": {"id": target_id}}}
-                )
-                if pulled.modified_count == 0:
-                    # 回滚，避免同一条友链同时存在于两个分组
-                    await linksDb.update_one(
-                        {"name": new_group},
-                        {"$pull": {"links": {"id": target_id}}},
-                    )
-                    raise HTTPException(
-                        status_code=500,
-                        detail={
-                            "message": "fail",
-                            "error": "移动分组失败，请重试",
-                        },
-                    )
-            else:
-                result = await linksDb.update_one(
-                    {"name": target_group, "links.id": target_id},
-                    {
-                        "$set": {
-                            "links.$.name": name,
-                            "links.$.url": link,
-                            "links.$.avatar": avatar,
-                            "links.$.description": descr,
-                            "links.$.color": color,
-                        }
-                    },
-                )
-                if result.matched_count == 0:
-                    raise HTTPException(
-                        status_code=404,
-                        detail={
-                            "message": "fail",
-                            "error": "原友链已不存在（可能被删除或移动过分组），无法应用修改",
-                        },
-                    )
+            await _replace_link(linksDb, application, body.group, fields)
         else:
-            flink = {
-                "name": name,
-                "url": link,
-                "avatar": avatar,
-                "description": descr,
-                "color": color,
-                "id": uuid.uuid4().hex[:8],
-                "latency": 0,
-            }
-            await linksDb.update_one(
-                {"name": body.group}, {"$push": {"links": flink}}, upsert=True
-            )
+            await _append_new_link(linksDb, body.group, fields)
 
         await applicationsDb.update_one(
             {"_id": _objectId(body.id)},
@@ -459,8 +462,8 @@ async def approveApplication(
         is_modify = application.get("type", 0) == 1
         if mail_configured() and applicant_email:
             subject, text, html = application_approved(
-                name,
-                link,
+                fields["name"],
+                fields["link"],
                 body.group,
                 is_modify,
                 application.get("avatar", ""),
