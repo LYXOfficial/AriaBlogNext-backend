@@ -181,6 +181,11 @@ CONTENT_TYPE_EXT = {
     "image/gif": "gif",
 }
 
+# 扩展名 -> content-type（用于 content-type 不可信时兜底）
+EXT_TO_TYPE = {}
+for _type, _ext in CONTENT_TYPE_EXT.items():
+    EXT_TO_TYPE.setdefault(_ext, _type)
+
 
 @app.post("/uploadImage")
 async def uploadImage(file: UploadFile = File(...), user=Depends(verify)):
@@ -281,6 +286,28 @@ def _is_public_host(host: str) -> bool:
     )
 
 
+
+def sniff_image_type(body: bytes) -> str:
+    """按文件头判断图片类型，用于 content-type 不可信（如 octet-stream）的情况。"""
+    if body.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if body.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if body.startswith(b"GIF87a") or body.startswith(b"GIF89a"):
+        return "image/gif"
+    if body[:4] == b"RIFF" and body[8:12] == b"WEBP":
+        return "image/webp"
+    if body.startswith(b"BM"):
+        return "image/bmp"
+    return ""
+
+
+def guess_ext_from_url(url: str) -> str:
+    """按 URL 路径的扩展名兜底，例如 .webp -> image/webp"""
+    suffix = os.path.splitext(urlparse(url).path)[1].lower().lstrip(".")
+    return EXT_TO_TYPE.get(suffix, "")
+
+
 @app.post("/rehostImageByUrl")
 async def rehost_image_by_url(body: RehostByUrlBody, user=Depends(verify)):
     """把外链图片下载后转存到本站图床（S3），返回新的地址。
@@ -326,10 +353,31 @@ async def rehost_image_by_url(body: RehostByUrlBody, user=Depends(verify)):
             (res.headers.get("content-type") or "").split(";")[0].strip().lower()
         )
         ext = CONTENT_TYPE_EXT.get(content_type)
+
+        # content-type 可能是 application/octet-stream 之类的泛类型，
+        # 这时按文件头魔数判断（有些 CDN 对 webp 就是这么返回的）
+        if not ext:
+            sniffed = sniff_image_type(res.content)
+            if sniffed:
+                content_type = sniffed
+                ext = CONTENT_TYPE_EXT.get(sniffed)
+
+        # 最后按 URL 扩展名兜底（但要排除伪装成图片的网页）
+        if not ext:
+            head = res.content.lstrip()[:64].lower()
+            looks_like_html = head.startswith(b"<") or head.startswith(b"\xef\xbb\xbf<")
+            guessed = "" if looks_like_html else guess_ext_from_url(src)
+            if guessed:
+                content_type = guessed
+                ext = CONTENT_TYPE_EXT.get(guessed)
+
         if not ext:
             raise HTTPException(
                 status_code=400,
-                detail={"message": "fail", "error": "对方返回的不是受支持的图片格式"},
+                detail={
+                    "message": "fail",
+                    "error": "对方返回的不是受支持的图片格式（仅支持 jpg/png/webp/gif）",
+                },
             )
         if len(res.content) > MAX_REHOST_BYTES:
             raise HTTPException(
@@ -350,3 +398,12 @@ async def rehost_image_by_url(body: RehostByUrlBody, user=Depends(verify)):
         raise HTTPException(
             status_code=500, detail={"message": "fail", "error": str(e)}
         )
+
+
+@app.get("/hostInfo")
+async def host_info(user=Depends(verify)):
+    """返回本站图床的公开地址前缀，供后台判断某个图片是否已在自有图床。"""
+    return {
+        "message": "success",
+        "data": {"publicUrl": (S3_PUBLIC_URL or "").rstrip("/")},
+    }
