@@ -412,8 +412,17 @@ async def approveApplication(
         applicant_email = (application.get("email") or "").strip()
         is_modify = application.get("type", 0) == 1
         if mail_configured() and applicant_email:
-            subject, content = application_approved(name, link, body.group, is_modify)
-            mail_sent = await asyncio.to_thread(send_mail, applicant_email, subject, content)
+            subject, text, html = application_approved(
+                name,
+                link,
+                body.group,
+                is_modify,
+                application.get("avatar", ""),
+                application.get("descr", ""),
+            )
+            mail_sent = await asyncio.to_thread(
+                send_mail, applicant_email, subject, text, html
+            )
         return {"message": "success", "mailSent": mail_sent}
     except HTTPException as e:
         raise e
@@ -458,11 +467,14 @@ async def rejectApplication(
         mail_sent = False
         applicant_email = (application.get("email") or "").strip()
         if reason and mail_configured() and applicant_email:
-            subject, content = application_rejected(
-                application.get("name", ""), application.get("link", ""), reason
+            subject, text, html = application_rejected(
+                application.get("name", ""),
+                application.get("link", ""),
+                reason,
+                application.get("avatar", ""),
             )
             mail_sent = await asyncio.to_thread(
-                send_mail, applicant_email, subject, content
+                send_mail, applicant_email, subject, text, html
             )
         return {"message": "success", "mailSent": mail_sent}
     except HTTPException as e:

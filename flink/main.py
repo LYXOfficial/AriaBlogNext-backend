@@ -286,7 +286,12 @@ async def applyFlink(
                 "ip": ip,
             }
         )
-        return {"message": "success", "mailSent": await _notify_new_application(name, link, email, body.type)}
+        return {
+            "message": "success",
+            "mailSent": await _notify_new_application(
+                name, link, email, body.type, avatar, descr
+            ),
+        }
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -295,18 +300,22 @@ async def applyFlink(
         )
 
 
-async def _notify_new_application(name: str, link: str, email: str, kind: int) -> bool:
+async def _notify_new_application(
+    name: str, link: str, email: str, kind: int, avatar: str = "", descr: str = ""
+) -> bool:
     """给申请人发回执、给博主（若配置了 FLINK_ADMIN_EMAIL）发提醒。
     邮件失败不影响申请本身，只把结果回给前端用于提示。"""
     if not mail_configured():
         return False
     is_modify = kind == 1
-    subject, content = application_received(name, link, is_modify)
-    sent = await asyncio.to_thread(send_mail, email, subject, content)
+    subject, text, html = application_received(name, link, is_modify, avatar, descr)
+    sent = await asyncio.to_thread(send_mail, email, subject, text, html)
     admin_email = (os.environ.get("FLINK_ADMIN_EMAIL") or "").strip()
     if admin_email:
-        a_subject, a_content = admin_new_application(name, link, email, is_modify)
-        await asyncio.to_thread(send_mail, admin_email, a_subject, a_content)
+        a_subject, a_text, a_html = admin_new_application(
+            name, link, email, is_modify, avatar, descr
+        )
+        await asyncio.to_thread(send_mail, admin_email, a_subject, a_text, a_html)
     return sent
 
 
