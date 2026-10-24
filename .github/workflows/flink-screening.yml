@@ -5,7 +5,7 @@
 # - 手动 workflow_dispatch（填 app_id + site_url，便于测试单个申请）
 #
 # 需要在仓库 Settings 配置：
-# - Secret: SCREENING_SECRET（与后端 .env 的 SCREENING_SECRET 一致，用于回写鉴权）
+# - Secret: SECRET（与后端 .env 的 SECRET 同值，用于初筛结论回写鉴权）
 # - Variable: BACKEND_URL（可选，默认 https://blognext-end.yaria.top）
 #
 # 模型速度说明：免费 runner 是 2 核 CPU，qwen3.5:9b 单次分析约 2~4 分钟；
@@ -73,8 +73,8 @@ jobs:
           SITE_URL: ${{ github.event.client_payload.url || github.event.inputs.site_url }}
           SITE_NAME: ${{ github.event.client_payload.name || github.event.inputs.site_name }}
           SITE_DESCR: ${{ github.event.client_payload.descr || github.event.inputs.site_descr }}
-          BACKEND_URL: ${{ vars.BACKEND_URL }}
-          SCREENING_SECRET: ${{ secrets.SCREENING_SECRET }}
+          BACKEND_URL: ${{ vars.BACKEND_URL || 'https://blognext-end.yaria.top' }}
+          SECRET: ${{ secrets.SECRET }}
           # 中国时区：模型判断「是否最近在更新」要按本站读者的日期基准
           TZ: Asia/Shanghai
         run: python scripts/flink_screening.py "$APP_ID" "$SITE_URL" "$SITE_NAME" "$SITE_DESCR"

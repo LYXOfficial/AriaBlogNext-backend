@@ -24,7 +24,7 @@ import urllib.request
 from datetime import datetime, timezone, timedelta
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "").rstrip("/")
-SECRET = os.environ.get("SCREENING_SECRET", "")
+SECRET = os.environ.get("SECRET", "")  # 与后端 .env 的 SECRET 同值，用于回写鉴权
 MODEL = os.environ.get("OLLAMA_MODEL", "qwen3.5:9b")
 # 本站地址：回链检测用它判断对方有没有挂本站友链
 SITE_URL = os.environ.get("SITE_URL", "https://blog.yaria.top")
@@ -325,7 +325,7 @@ def report(app_id: str, verdict: str, summary: str, reason: str, backlink: str, 
 
 def main():
     if not BACKEND_URL or not SECRET:
-        print("缺少 BACKEND_URL 或 SCREENING_SECRET，未回写结论", file=sys.stderr)
+        print("缺少 BACKEND_URL 或 SECRET，未回写结论", file=sys.stderr)
         sys.exit(1)
     app_id, site_url = sys.argv[1], sys.argv[2]
     # 申请表单里的名称/描述也一起交给模型审（argv 可选，手动测试可不传）

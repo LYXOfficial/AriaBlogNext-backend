@@ -89,14 +89,15 @@ async def receive_screening(
 ):
     """初筛结论回写（GitHub Actions runner 调用）。
 
-    用独立的 SCREENING_SECRET 鉴权而不是后台登录态：runner 没有管理员
-    账号，也不该拿到；密钥只授予「写 aiScreening 字段」这一件事。
+    鉴权直接复用 .env 的 SECRET：少维护一个密钥。注意取舍——该密钥同时
+    是后台登录的 JWT 签名密钥，放进 GitHub Actions 后泄漏影响面会扩大到
+    「可伪造管理员登录」；单人博客可接受，介意时再拆独立密钥。
     """
-    expected = os.environ.get("SCREENING_SECRET", "").strip()
+    expected = os.environ.get("SECRET", "").strip()
     if not expected:
         raise HTTPException(
             status_code=503,
-            detail={"message": "fail", "error": "初筛功能未配置，请先设置 SCREENING_SECRET"},
+            detail={"message": "fail", "error": "初筛功能未配置，请先设置 SECRET"},
         )
     provided = request.headers.get("x-screening-secret", "")
     if not secrets.compare_digest(provided, expected):

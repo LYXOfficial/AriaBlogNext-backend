@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 import motor.motor_asyncio as motor
 import os, random, re, httpx
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from db import get_database
 
@@ -299,7 +299,7 @@ async def _request_summary(post: dict) -> str:
 
 
 async def generate_summary(slug: str, currentCollection, summaryCollection) -> str:
-    """生成并缓存摘要（供管理员手动刷新调用，不受 10 分钟限制）。"""
+    """生成并缓存摘要。公开 GET 仅在无缓存时调用；管理员强制刷新走 /update/post/refreshSummary。"""
     post = await currentCollection.find_one({"slug": slug})
     if post is None:
         raise HTTPException(
@@ -317,32 +317,17 @@ async def generate_summary(slug: str, currentCollection, summaryCollection) -> s
 @app.get("/postSummary")
 async def postSummary(
     slug: str,
-    refresh: bool = False,
     currentCollection=Depends(getDb),
     currentSummaryCollection=Depends(getSummaryDb),
 ):
     try:
-        if not refresh:
-            cachedSummary = await currentSummaryCollection.find_one({"slug": slug})
-            if cachedSummary is not None:
-                return {"message": "success", "data": cachedSummary["summary"]}
-
-        # 检查刷新限制
         cachedSummary = await currentSummaryCollection.find_one({"slug": slug})
-        if cachedSummary and "lastRefreshTime" in cachedSummary:
-            last_refresh = cachedSummary["lastRefreshTime"]
-            if datetime.now() - last_refresh < timedelta(minutes=10):
-                raise HTTPException(
-                    status_code=429,
-                    detail={
-                        "message": "fail",
-                        "error": "请等待10分钟后再刷新摘要喵～",
-                        "nextRefreshTime": (
-                            last_refresh + timedelta(minutes=10)
-                        ).timestamp(),
-                    },
-                )
+        if cachedSummary is not None:
+            return {"message": "success", "data": cachedSummary["summary"]}
 
+        # 只有无缓存时才公开生成（每篇最多触发一次）；强制刷新一律走
+        # update/post/refreshSummary（管理员鉴权）。这里不提供 refresh 参数，
+        # 防止匿名访客轮换 slug 或并发请求刷 SiliconFlow 额度
         summary = await generate_summary(
             slug, currentCollection, currentSummaryCollection
         )
