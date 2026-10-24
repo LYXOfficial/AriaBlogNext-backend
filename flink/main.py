@@ -564,24 +564,25 @@ async def updateApplication(
                         },
                     )
 
-        await applicationsDb.update_one(
-            {"_id": doc["_id"]},
-            {
-                "$set": {
-                    "name": merged.name.strip(),
-                    "link": link,
-                    "avatar": merged.avatar.strip(),
-                    "descr": merged.descr.strip(),
-                    "color": (merged.color or "").strip(),
-                    "updatedAt": datetime.now(timezone.utc),
-                },
-                # 内容变了，旧初筛结论作废，重新触发一轮初筛
-                "$unset": {"aiScreening": ""},
-            },
-        )
-        await trigger_screening(
-            str(doc["_id"]), link, merged.name, merged.descr
-        )
+        url_changed = link != doc.get("link")
+        update_ops = {
+            "$set": {
+                "name": merged.name.strip(),
+                "link": link,
+                "avatar": merged.avatar.strip(),
+                "descr": merged.descr.strip(),
+                "color": (merged.color or "").strip(),
+                "updatedAt": datetime.now(timezone.utc),
+            }
+        }
+        if url_changed:
+            # 站点地址变了才重新初筛；只改名称/描述的话，原结论仍然有效
+            update_ops["$unset"] = {"aiScreening": ""}
+        await applicationsDb.update_one({"_id": doc["_id"]}, update_ops)
+        if url_changed:
+            await trigger_screening(
+                str(doc["_id"]), link, merged.name, merged.descr
+            )
         return {"message": "success"}
     except HTTPException as e:
         raise e

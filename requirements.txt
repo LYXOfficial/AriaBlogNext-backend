@@ -1,9 +1,0 @@
-fastapi
-uvicorn
-motor
-python-dotenv
-pydantic
-pyjwt
-httpx
-python-multipart
-boto3
