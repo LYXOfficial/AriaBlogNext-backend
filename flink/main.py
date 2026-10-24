@@ -5,7 +5,6 @@ import os
 import re
 import time
 from datetime import datetime, timezone, timedelta
-from bson import ObjectId
 from pydantic import BaseModel
 from typing import Optional
 
@@ -69,17 +68,6 @@ class ApplyRequestBody(BaseModel):
     color: Optional[str] = ""
     type: Optional[int] = 0  # 0=新增友链申请，1=修改已有友链
     targetUrl: Optional[str] = ""  # type=1 时填当前已收录的地址
-
-
-class WithdrawBody(BaseModel):
-    id: str = ""
-    email: str = ""
-
-
-class UpdateApplicationBody(ApplyRequestBody):
-    """申请人修改自己待审申请的内容（类型与目标友链保持不变）"""
-
-    id: str = ""
 
 
 async def getLinksDb():
@@ -207,8 +195,67 @@ def validate_application(body: ApplyRequestBody) -> Optional[tuple[int, str]]:
 
 _DUPLICATE_PENDING_ERROR = {
     "status_code": 409,
-    "detail": {"message": "fail", "error": "该网址已有待审核的申请，请耐心等待"},
+    "detail": {
+        "message": "fail",
+        "error": "已有一条内容完全相同的申请在等待审核，无需重复提交",
+    },
 }
+
+
+def _application_identity(
+    name, link, avatar, descr, color, email, app_type, target_id
+) -> tuple:
+    """判重用的归一化字段组：内容（含类型与修改对象）完全一致才算重复。
+
+    与「无变化修改申请」同一套归一化：trim、URL 去结尾斜杠、颜色缺省 #888888；
+    邮箱大小写不敏感。写错了任何一项都可以直接重新提交。"""
+    return (
+        _norm_text(name),
+        _norm_url_text(link),
+        _norm_text(avatar),
+        _norm_text(descr),
+        _norm_color(color),
+        _norm_text(email).lower(),
+        app_type,
+        target_id,
+    )
+
+
+def _doc_identity(doc: dict) -> tuple:
+    return _application_identity(
+        doc.get("name"),
+        doc.get("link"),
+        doc.get("avatar"),
+        doc.get("descr"),
+        doc.get("color"),
+        doc.get("email"),
+        doc.get("type", 0),
+        doc.get("targetId"),
+    )
+
+
+async def _has_identical_pending(applicationsDb, identity: tuple) -> bool:
+    """待审队列里是否已有内容完全相同的申请。
+
+    队列上限 20 条，全量取出来在应用侧比对，
+    顺便规避库里 link 结尾斜杠两种写法导致的漏判。"""
+    cursor = applicationsDb.find(
+        {"status": "pending"},
+        {
+            "name": 1,
+            "link": 1,
+            "avatar": 1,
+            "descr": 1,
+            "color": 1,
+            "email": 1,
+            "type": 1,
+            "targetId": 1,
+        },
+    )
+    async for doc in cursor:
+        if _doc_identity(doc) == identity:
+            return True
+    return False
 
 
 async def _ensure_capacity(applicationsDb) -> None:
@@ -222,9 +269,12 @@ async def _ensure_capacity(applicationsDb) -> None:
         )
 
 
-async def _check_new_request(linksDb, applicationsDb, link: str) -> None:
-    """新增申请：已收录或已有待审重复时拒绝。"""
-    if await find_link(linksDb, link):
+async def _check_new_request(linksDb, applicationsDb, fields: dict) -> None:
+    """新增申请：网址已收录时拒绝；与某条待审申请内容完全一致也拒绝。
+
+    只有部分字段相同（比如改完描述重新提交）直接放行——
+    自助修改/撤销已下线，重新提交就是新的修改方式，旧的等博主审核时处理。"""
+    if await find_link(linksDb, fields["link"]):
         raise HTTPException(
             status_code=409,
             detail={
@@ -232,15 +282,22 @@ async def _check_new_request(linksDb, applicationsDb, link: str) -> None:
                 "error": "该网址已经在友链里了，如需修改请提交修改申请",
             },
         )
-    duplicated = await applicationsDb.find_one(
-        {"link": normalize_url(link), "type": 0, "status": "pending"}, {"_id": 1}
+    identity = _application_identity(
+        fields["name"],
+        fields["link"],
+        fields["avatar"],
+        fields["descr"],
+        fields["color"],
+        fields["email"],
+        0,
+        None,
     )
-    if duplicated:
+    if await _has_identical_pending(applicationsDb, identity):
         raise HTTPException(**_DUPLICATE_PENDING_ERROR)
 
 
 async def _check_modify_request(linksDb, applicationsDb, target_url: str, fields: dict):
-    """修改申请：目标友链必须存在、内容确有变化、且没有重复待审申请。
+    """修改申请：目标友链必须存在、内容确有变化、且没有内容完全相同的待审申请。
 
     返回 (target_group, target_id)。
     """
@@ -269,10 +326,17 @@ async def _check_modify_request(linksDb, applicationsDb, target_url: str, fields
             },
         )
     target_id = found["link"].get("id")
-    duplicated = await applicationsDb.find_one(
-        {"targetId": target_id, "type": 1, "status": "pending"}, {"_id": 1}
+    identity = _application_identity(
+        fields["name"],
+        fields["link"],
+        fields["avatar"],
+        fields["descr"],
+        fields["color"],
+        fields["email"],
+        1,
+        target_id,
     )
-    if duplicated:
+    if await _has_identical_pending(applicationsDb, identity):
         raise HTTPException(**_DUPLICATE_PENDING_ERROR)
     return found["group"], target_id
 
@@ -321,7 +385,7 @@ async def applyFlink(
             )
         else:
             target_group = target_id = None
-            await _check_new_request(linksDb, applicationsDb, link)
+            await _check_new_request(linksDb, applicationsDb, fields)
 
         # 同一邮箱重新提交时，清掉它旧的「已出结果」记录（相当于重新排队）
         if email:
@@ -435,7 +499,6 @@ async def getApplyStatus(
                     "reason": 1,
                     "createdAt": 1,
                     "decidedAt": 1,
-                    "email": 1,  # 只用来算 hasEmail，返回前会删掉
                 },
             )
             .sort("createdAt", -1)
@@ -443,8 +506,6 @@ async def getApplyStatus(
         results = await cursor.to_list(length=20)
         for item in results:
             item["id"] = str(item.pop("_id"))
-            # 邮箱是申请人的联系方式，不随公开查询结果下发，只给前端一个有无标记
-            item["hasEmail"] = bool((item.pop("email") or "").strip())
             for key in ("createdAt", "decidedAt"):
                 value = item.get(key)
                 item[key] = (
@@ -457,163 +518,7 @@ async def getApplyStatus(
         )
 
 
-async def _own_pending(applicationsDb, app_id: str, email: str):
-    """取出「属于该邮箱、且仍在待审」的申请；否则抛出对应错误。"""
-    try:
-        oid = ObjectId(app_id)
-    except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail={"message": "fail", "error": "申请 id 不合法"},
-        )
-    doc = await applicationsDb.find_one({"_id": oid})
-    if not doc:
-        raise HTTPException(
-            status_code=404,
-            detail={"message": "fail", "error": "申请不存在或已被处理"},
-        )
-    if not (doc.get("email") or "").strip():
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "message": "fail",
-                "error": "该申请提交时没有填写邮箱，无法自助修改或撤销",
-            },
-        )
-    if (doc.get("email") or "").strip().lower() != (email or "").strip().lower():
-        raise HTTPException(
-            status_code=403,
-            detail={"message": "fail", "error": "邮箱与申请不匹配"},
-        )
-    if doc.get("status") != "pending":
-        raise HTTPException(
-            status_code=409,
-            detail={"message": "fail", "error": "该申请已处理，无法再操作"},
-        )
-    return doc
-
-
-@app.post("/apply/withdraw")
-async def withdrawApplication(
-    body: WithdrawBody, applicationsDb=Depends(getApplicationsDb)
-):
-    """申请人撤销自己的待审申请，撤销后立即移出队列。"""
-    doc = await _own_pending(applicationsDb, body.id, body.email)
-    try:
-        await applicationsDb.delete_one({"_id": doc["_id"]})
-        return {"message": "success"}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail={"message": "fail", "error": str(e)}
-        )
-
-
-@app.post("/apply/update")
-async def updateApplication(
-    body: UpdateApplicationBody,
-    linksDb=Depends(getLinksDb),
-    applicationsDb=Depends(getApplicationsDb),
-):
-    """申请人修改自己待审申请的内容（申请类型与目标友链保持不变）。"""
-    doc = await _own_pending(applicationsDb, body.id, body.email)
-
-    # 复用同一套字段校验；邮箱与类型取库里已存的，避免被改身份
-    merged = ApplyRequestBody(
-        name=body.name,
-        link=body.link,
-        avatar=body.avatar,
-        descr=body.descr,
-        email=doc.get("email") or "",
-        color=body.color,
-        type=doc.get("type", 0),
-        targetUrl=doc.get("targetUrl") or "",
-    )
-    invalid = validate_application(merged)
-    if invalid:
-        status, message = invalid
-        raise HTTPException(
-            status_code=status, detail={"message": "fail", "error": message}
-        )
-
-    link = (body.link or "").strip()
-
-    # 把修改申请改成「和现网完全一样」时也拦下来
-    if doc.get("type", 0) == 1:
-        target = await linksDb.find_one(
-            {"name": doc.get("targetGroup"), "links.id": doc.get("targetId")},
-            {"links.$": 1},
-        )
-        current = (target or {}).get("links", [None])[0]
-        if current and is_same_as_current(
-            current,
-            merged.name,
-            link,
-            merged.avatar,
-            merged.descr,
-            merged.color,
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "message": "fail",
-                    "error": "内容与当前友链完全一致，无需提交修改申请",
-                },
-            )
-
-    try:
-        # 改成了新网址：重新做重复校验（已收录 / 别人的待审申请）
-        if normalize_url(link) != normalize_url(doc.get("link") or ""):
-            if doc.get("type", 0) == 0:
-                exists = await find_link(linksDb, link)
-                if exists:
-                    raise HTTPException(
-                        status_code=409,
-                        detail={
-                            "message": "fail",
-                            "error": "该网址已经在友链里了，如需修改请提交修改申请",
-                        },
-                    )
-                duplicated = await applicationsDb.find_one(
-                    {
-                        "link": normalize_url(link),
-                        "type": 0,
-                        "status": "pending",
-                        "_id": {"$ne": doc["_id"]},
-                    },
-                    {"_id": 1},
-                )
-                if duplicated:
-                    raise HTTPException(
-                        status_code=409,
-                        detail={
-                            "message": "fail",
-                            "error": "该网址已有待审核的申请，请耐心等待",
-                        },
-                    )
-
-        url_changed = link != doc.get("link")
-        update_ops = {
-            "$set": {
-                "name": merged.name.strip(),
-                "link": link,
-                "avatar": merged.avatar.strip(),
-                "descr": merged.descr.strip(),
-                "color": (merged.color or "").strip(),
-                "updatedAt": datetime.now(timezone.utc),
-            }
-        }
-        if url_changed:
-            # 站点地址变了才重新初筛；只改名称/描述的话，原结论仍然有效
-            update_ops["$unset"] = {"aiScreening": ""}
-        await applicationsDb.update_one({"_id": doc["_id"]}, update_ops)
-        if url_changed:
-            await trigger_screening(
-                str(doc["_id"]), link, merged.name, merged.descr
-            )
-        return {"message": "success"}
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail={"message": "fail", "error": str(e)}
-        )
+# 申请人自助「修改/撤销」接口（/apply/update、/apply/withdraw）已下线：
+# 没有可靠办法核实操作者就是申请人本人（邮箱可缺填，站名/网址又是公开信息），
+# 改成「内容有变即可直接重新提交」，与待审申请完全相同的重复提交会被拦下，
+# 旧的待审记录由博主在后台审批时一并处理（拒绝掉过期版本即可）。
