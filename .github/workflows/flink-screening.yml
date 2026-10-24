@@ -8,8 +8,9 @@
 # - Secret: SECRET（与后端 .env 的 SECRET 同值，用于初筛结论回写鉴权）
 # - Variable: BACKEND_URL（可选，默认 https://blognext-end.yaria.top）
 #
-# 模型速度说明：免费 runner 是 2 核 CPU，qwen3.5:9b 单次分析约 2~4 分钟；
-# 如果实测太慢，把下面两处 OLLAMA_MODEL 换成 qwen3.5:4b，速度约快三倍。
+# 模型速度说明：免费 runner 是 2 核 CPU，实测 qwen3.5:9b 的 16k 上下文
+# prompt 评估就要 3 分钟以上、整轮容易撞 20 分钟超时，已默认 qwen3.5:4b
+# （速度约快三倍）。本地有 GPU 想用 9b 的话改回下面两处 OLLAMA_MODEL 即可。
 
 name: 友链申请初筛
 
@@ -63,12 +64,12 @@ jobs:
 
       - name: 拉取模型
         env:
-          OLLAMA_MODEL: qwen3.5:9b
+          OLLAMA_MODEL: qwen3.5:4b
         run: ollama pull "$OLLAMA_MODEL"
 
       - name: 抓取站点并初筛
         env:
-          OLLAMA_MODEL: qwen3.5:9b
+          OLLAMA_MODEL: qwen3.5:4b
           APP_ID: ${{ github.event.client_payload.id || github.event.inputs.app_id }}
           SITE_URL: ${{ github.event.client_payload.url || github.event.inputs.site_url }}
           SITE_NAME: ${{ github.event.client_payload.name || github.event.inputs.site_name }}

@@ -23,6 +23,11 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone, timedelta
 
+# Actions 的日志管道不是终端，Python 对它做全缓冲，print 会积压到进程结束
+# 才一次性输出——切行缓冲，保证抓取/推理进度实时可见（流式 token 的 print
+# 已单独带 flush，这里管的是其余所有日志）
+sys.stdout.reconfigure(line_buffering=True)
+
 BACKEND_URL = os.environ.get("BACKEND_URL", "").rstrip("/")
 SECRET = os.environ.get("SECRET", "")  # 与后端 .env 的 SECRET 同值，用于回写鉴权
 MODEL = os.environ.get("OLLAMA_MODEL", "qwen3.5:9b")
@@ -316,6 +321,15 @@ def report(app_id: str, verdict: str, summary: str, reason: str, backlink: str, 
                 if 200 <= resp.status < 300:
                     return
                 raise RuntimeError(f"HTTP {resp.status}")
+        except urllib.error.HTTPError as e:
+            # 404 = 后端找不到待审中的申请：人工已在初筛跑完前批准/拒绝/删除。
+            # 初筛晚到是设计内场景，不是故障——正常结束，不重试也不标红。
+            if e.code == 404:
+                print("申请已被人工处理，初筛结论不再回写")
+                return
+            last_error = e
+            if attempt < retries:
+                time.sleep(3)
         except Exception as e:  # noqa: BLE001
             last_error = e
             if attempt < retries:
@@ -335,7 +349,9 @@ def main():
     # ---------- 抓首页，必要时找博客入口 ----------
     blog_hint = ""
     try:
+        print("启动无头浏览器……")
         renderer = Renderer()
+        print("无头浏览器就绪")
     except Exception as e:  # noqa: BLE001
         print(f"无头浏览器不可用，全程降级静态抓取：{e}")
         renderer = None
@@ -423,6 +439,8 @@ def main():
         content += f"\n\n【备注】{blog_hint}"
 
     verdict, summary, reason = "review", "", ""
+    print(f"开始模型推理（{MODEL}，上下文约 {len(content)} 字符）。"
+          "CPU runner 上 prompt 评估需要数分钟且此阶段没有流式输出，请耐心等待……", flush=True)
     for attempt in range(2):  # 模型输出偶尔不合法，重试一次
         try:
             raw = ask_model(content)

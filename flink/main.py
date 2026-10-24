@@ -384,19 +384,43 @@ async def _notify_new_application(
 
 
 @app.get("/apply/status")
-async def getApplyStatus(email: str, applicationsDb=Depends(getApplicationsDb)):
-    """申请人用邮箱自查进度"""
+async def getApplyStatus(
+    email: Optional[str] = None,
+    name: Optional[str] = None,
+    applicationsDb=Depends(getApplicationsDb),
+):
+    """申请人用邮箱或站点名称自查进度（至少填一个，同时填时结果取并集）"""
     email = (email or "").strip()
-    if not EMAIL_PATTERN.match(email):
+    name = (name or "").strip()
+    conditions = []
+    if email:
+        if not EMAIL_PATTERN.match(email):
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "fail", "error": "邮箱格式不正确"},
+            )
+        conditions.append({"email": email})
+    if name:
+        if len(name) > MAX_NAME:
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "fail", "error": "站点名称过长"},
+            )
+        # 站点名按大小写不敏感精确匹配，避免只敲半个名字就捞到别人的申请；
+        # re.escape 防止输入里的正则元字符被当成模式执行
+        conditions.append(
+            {"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}
+        )
+    if not conditions:
         raise HTTPException(
             status_code=400,
-            detail={"message": "fail", "error": "邮箱格式不正确"},
+            detail={"message": "fail", "error": "请填写申请时的邮箱或站点名称"},
         )
     try:
         await purge_expired(applicationsDb)
         cursor = (
             applicationsDb.find(
-                {"email": email},
+                {"$or": conditions} if len(conditions) > 1 else conditions[0],
                 {
                     "_id": 1,
                     "type": 1,
@@ -411,6 +435,7 @@ async def getApplyStatus(email: str, applicationsDb=Depends(getApplicationsDb)):
                     "reason": 1,
                     "createdAt": 1,
                     "decidedAt": 1,
+                    "email": 1,  # 只用来算 hasEmail，返回前会删掉
                 },
             )
             .sort("createdAt", -1)
@@ -418,6 +443,8 @@ async def getApplyStatus(email: str, applicationsDb=Depends(getApplicationsDb)):
         results = await cursor.to_list(length=20)
         for item in results:
             item["id"] = str(item.pop("_id"))
+            # 邮箱是申请人的联系方式，不随公开查询结果下发，只给前端一个有无标记
+            item["hasEmail"] = bool((item.pop("email") or "").strip())
             for key in ("createdAt", "decidedAt"):
                 value = item.get(key)
                 item[key] = (
