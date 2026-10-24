@@ -1,0 +1,80 @@
+# 友链申请 AI 初筛：抓取申请站点 → Ollama(qwen3.5) 按规则分析 → 回写博客后端。
+#
+# 触发方式：
+# - 后端在收到友链申请后发 repository_dispatch（需要后端 .env 配置 GITHUB_REPO + GH_TOKEN）
+# - 手动 workflow_dispatch（填 app_id + site_url，便于测试单个申请）
+#
+# 需要在仓库 Settings 配置：
+# - Secret: SCREENING_SECRET（与后端 .env 的 SCREENING_SECRET 一致，用于回写鉴权）
+# - Variable: BACKEND_URL（可选，默认 https://blognext-end.yaria.top）
+#
+# 模型速度说明：免费 runner 是 2 核 CPU，qwen3.5:9b 单次分析约 2~4 分钟；
+# 如果实测太慢，把下面两处 OLLAMA_MODEL 换成 qwen3.5:4b，速度约快三倍。
+
+name: 友链申请初筛
+
+on:
+  repository_dispatch:
+    types: [flink-screening]
+  workflow_dispatch:
+    inputs:
+      app_id:
+        description: 友链申请记录 ID
+        required: true
+      site_url:
+        description: 申请站点地址
+        required: true
+      site_name:
+        description: 申请的网站名称
+        required: false
+      site_descr:
+        description: 申请的网站描述
+        required: false
+
+# 同一申请重复触发时排队执行，避免两轮初筛交错回写
+concurrency:
+  group: flink-screening-${{ github.event.client_payload.id || github.event.inputs.app_id }}
+  cancel-in-progress: false
+
+jobs:
+  screening:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 安装无头浏览器（客户端渲染站点兜底）
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: 安装并启动 Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve > /tmp/ollama.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:11434/ && break
+            sleep 2
+          done
+
+      - name: 拉取模型
+        env:
+          OLLAMA_MODEL: qwen3.5:9b
+        run: ollama pull "$OLLAMA_MODEL"
+
+      - name: 抓取站点并初筛
+        env:
+          OLLAMA_MODEL: qwen3.5:9b
+          APP_ID: ${{ github.event.client_payload.id || github.event.inputs.app_id }}
+          SITE_URL: ${{ github.event.client_payload.url || github.event.inputs.site_url }}
+          SITE_NAME: ${{ github.event.client_payload.name || github.event.inputs.site_name }}
+          SITE_DESCR: ${{ github.event.client_payload.descr || github.event.inputs.site_descr }}
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
+          SCREENING_SECRET: ${{ secrets.SCREENING_SECRET }}
+          # 中国时区：模型判断「是否最近在更新」要按本站读者的日期基准
+          TZ: Asia/Shanghai
+        run: python scripts/flink_screening.py "$APP_ID" "$SITE_URL" "$SITE_NAME" "$SITE_DESCR"

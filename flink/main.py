@@ -15,10 +15,13 @@ from flink.mail import (
     application_received,
     admin_new_application,
 )
+from flink.screening import app as screening_app
+from flink.screening import trigger_screening
 
 from db import get_database
 
 app = APIRouter()
+app.include_router(screening_app)
 
 MAX_NAME = 50
 MAX_DESCR = 200
@@ -326,7 +329,7 @@ async def applyFlink(
                 {"email": email, "status": {"$ne": "pending"}}
             )
 
-        await applicationsDb.insert_one(
+        result = await applicationsDb.insert_one(
             {
                 "type": body.type,
                 **fields,
@@ -340,8 +343,13 @@ async def applyFlink(
                 "ip": ip,
             }
         )
+        # AI 初筛：入库后触发 GitHub Actions 抓站分析；失败不影响申请提交
+        screening_triggered = await trigger_screening(
+            str(result.inserted_id), link, name, descr
+        )
         return {
             "message": "success",
+            "screeningTriggered": screening_triggered,
             "mailSent": await _notify_new_application(
                 name, link, email, body.type, avatar, descr
             ),
@@ -566,8 +574,13 @@ async def updateApplication(
                     "descr": merged.descr.strip(),
                     "color": (merged.color or "").strip(),
                     "updatedAt": datetime.now(timezone.utc),
-                }
+                },
+                # 内容变了，旧初筛结论作废，重新触发一轮初筛
+                "$unset": {"aiScreening": ""},
             },
+        )
+        await trigger_screening(
+            str(doc["_id"]), link, merged.name, merged.descr
         )
         return {"message": "success"}
     except HTTPException as e:
