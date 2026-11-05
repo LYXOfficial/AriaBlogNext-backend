@@ -21,6 +21,11 @@ class UpdateSpeaksRequestBody(BaseModel):
 
 def replace_and_remove_tags(text):
     text = re.sub(r"<a\s+[^>]*>.*?<\/a>", "[链接]", text)
+    # 后台说说编辑器插入的 owo 表情（<img class="bb-emoji">）单独记 [表情]，
+    # 与普通插图 [图片] 区分；必须先于通用 img 替换。
+    text = re.sub(
+        r"""<img\s[^>]*class=["'][^"']*\bbb-emoji\b[^"']*["'][^>]*>""", "[表情]", text
+    )
     text = re.sub(r"<img\s+[^>]*>", "[图片]", text)
     text = re.sub("<.*?>", "", text)
     return text
